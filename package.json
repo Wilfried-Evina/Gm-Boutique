@@ -11,13 +11,17 @@
     "dev:web": "npm run dev --workspace=@gm-boutique/web",
     "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
     "build": "npm run build --workspaces",
-    "lint": "eslint .",
-    "format": "prettier --write \"**/*.{ts,tsx,vue,json,md}\""
+    "lint": "eslint \"**/*.{ts,js,vue,cjs}\" --fix",
+    "format": "prettier --write \"**/*.{ts,js,vue,json,md}\""
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "concurrently": "^8.2.2",
-    "eslint": "^8.56.0",
-    "prettier": "^3.2.4",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.10.0",
+    "prettier": "^3.9.6",
     "typescript": "^5.3.3"
   }
 }

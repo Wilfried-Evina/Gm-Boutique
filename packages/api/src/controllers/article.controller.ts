@@ -132,5 +132,53 @@ export const articleController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  async update(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = createArticleSchema.partial().parse(req.body);
+      const article = await Article.findById(req.params.id);
+      
+      if (!article) return res.status(404).json({ message: 'Article not found' });
+      
+      if (data.brand) article.brand = data.brand;
+      if (data.type) article.type = data.type;
+      if (data.color) article.color = data.color;
+      if (data.size !== undefined) article.size = data.size;
+      if (data.season !== undefined) article.season = data.season;
+      if (data.description !== undefined) article.description = data.description;
+      if (data.clientPrice !== undefined) article.clientPrice = data.clientPrice;
+      if (data.publicPrice !== undefined) article.publicPrice = data.publicPrice;
+      if (data.priceReduction !== undefined) article.priceReduction = data.priceReduction;
+
+      await article.save();
+      res.json(article);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getByBarcode(req: Request, res: Response, next: NextFunction) {
+    try {
+      const article = await Article.findOne({ barcode: req.params.barcode }).populate('clientId');
+      if (!article) return res.status(404).json({ message: 'Article not found' });
+      res.json(article);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getExpired(req: Request, res: Response, next: NextFunction) {
+    try {
+      const now = new Date();
+      const expiredArticles = await Article.find({
+        'priceReduction.deadlineDate': { $lt: now },
+        status: { $in: [ArticleStatus.DEPOSITED, ArticleStatus.ON_SALE] }
+      }).populate('clientId', 'firstName lastName phone');
+      
+      res.json(expiredArticles);
+    } catch (error) {
+      next(error);
+    }
   }
 };
