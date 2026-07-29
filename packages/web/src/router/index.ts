@@ -4,6 +4,8 @@ import AppLayout from '../layouts/AppLayout.vue';
 import Dashboard from '../pages/Dashboard.vue';
 
 const Placeholder = () => import('../pages/Placeholder.vue');
+const ClientsList = () => import('../pages/clients/ClientsList.vue');
+const ClientDetail = () => import('../pages/clients/ClientDetail.vue');
 
 const router = createRouter({
   history: createWebHistory(),
@@ -15,7 +17,8 @@ const router = createRouter({
       children: [
         { path: '', name: 'Dashboard', component: Dashboard, meta: { title: 'Tableau de bord' } },
         { path: 'alertes', name: 'Alertes', component: Placeholder, meta: { title: 'Alertes' } },
-        { path: 'clients', name: 'Clientes', component: Placeholder, meta: { title: 'Clientes' } },
+        { path: 'clients', name: 'Clientes', component: ClientsList, meta: { title: 'Clientes' } },
+        { path: 'clients/:id', name: 'ClientDetail', component: ClientDetail, meta: { title: 'Fiche cliente' } },
         { path: 'articles', name: 'Articles', component: Placeholder, meta: { title: 'Articles & Dépôts' } },
         { path: 'retrocessions', name: 'Retrocessions', component: Placeholder, meta: { title: 'Rétrocessions' } },
         { path: 'documents', name: 'Documents', component: Placeholder, meta: { title: 'Documents' } },
