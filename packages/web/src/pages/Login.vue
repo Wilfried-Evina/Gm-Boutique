@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
-import { apiClient } from '../api/client';
+import { useNotificationsStore } from '../stores/notifications';
 import * as yup from 'yup';
 import { useForm, useField } from 'vee-validate';
 
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
+const notify = useNotificationsStore();
 const isLoading = ref(false);
 const serverError = ref('');
 
@@ -27,22 +29,22 @@ const { value: password } = useField('password');
 const onSubmit = handleSubmit(async (values) => {
   isLoading.value = true;
   serverError.value = '';
-  
+
   try {
-    const response = await apiClient.post('/auth/login', {
-      email: values.email,
-      password: values.password,
-    });
-    
-    authStore.setToken(response.data.tokens.accessToken);
-    await authStore.fetchProfile();
-    router.push('/');
+    await authStore.login(values.email as string, values.password as string);
+    notify.success('Connexion réussie. Bienvenue !');
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
+    router.push(redirect);
   } catch (error: any) {
-    if (error.response && error.response.status === 401) {
+    const status = error.response?.status;
+    if (status === 401) {
       serverError.value = 'Email ou mot de passe incorrect.';
+    } else if (status === 429) {
+      serverError.value = 'Trop de tentatives. Réessaie dans quelques minutes.';
     } else {
       serverError.value = 'Une erreur est survenue lors de la connexion.';
     }
+    notify.error(serverError.value);
   } finally {
     isLoading.value = false;
   }

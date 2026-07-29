@@ -17,33 +17,32 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Interceptor pour rafraîchir le token automatiquement
+// Interceptor pour rafraîchir le token automatiquement sur 401
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
-    // Si l'erreur est 401 et qu'on n'a pas encore essayé de rafraîchir
-    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/login') {
+    const url: string = originalRequest?.url ?? '';
+    const isAuthCall = url.includes('/auth/login') || url.includes('/auth/refresh');
+
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isAuthCall) {
       originalRequest._retry = true;
-      try {
-        // Le backend doit lire le refreshToken depuis les cookies httpOnly pour que ça marche
-        const response = await axios.post(`${apiClient.defaults.baseURL}/auth/refresh`, {}, { withCredentials: true });
-        const newToken = response.data.tokens.accessToken;
-        
-        // On importe le store ici (lazy) pour éviter les dépendances circulaires
-        const { useAuthStore } = await import('../stores/auth');
-        const authStore = useAuthStore();
-        authStore.setToken(newToken);
-        
-        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+
+      // Import différé du store pour éviter les dépendances circulaires.
+      const { useAuthStore } = await import('../stores/auth');
+      const authStore = useAuthStore();
+
+      const refreshed = await authStore.refresh();
+      if (refreshed && authStore.token) {
+        originalRequest.headers = originalRequest.headers ?? {};
+        originalRequest.headers.Authorization = `Bearer ${authStore.token}`;
         return apiClient(originalRequest);
-      } catch (refreshError) {
-        const { useAuthStore } = await import('../stores/auth');
-        const authStore = useAuthStore();
-        authStore.logout();
+      }
+
+      // Échec du rafraîchissement : on nettoie et on renvoie vers la connexion.
+      authStore.logout();
+      if (window.location.pathname !== '/login') {
         window.location.href = '/login';
-        return Promise.reject(refreshError);
       }
     }
     return Promise.reject(error);

@@ -1,57 +1,131 @@
 <script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { PanelLeftClose, PanelLeftOpen, Search } from 'lucide-vue-next';
 import { useAuthStore } from '../stores/auth';
-import { useRouter } from 'vue-router';
+import { useNotificationsStore } from '../stores/notifications';
+import { flattenNav } from '../config/navigation';
+import SidebarNav from '../components/sidebar/SidebarNav.vue';
+import CommandPalette from '../components/CommandPalette.vue';
 
-const authStore = useAuthStore();
+const route = useRoute();
 const router = useRouter();
+const authStore = useAuthStore();
+const notify = useNotificationsStore();
 
-const handleLogout = () => {
-  authStore.logout();
-  router.push('/login');
-};
+const sidebarOpen = ref(true);
+const paletteOpen = ref(false);
+
+const currentTitle = computed(() => {
+  if (typeof route.meta.title === 'string') return route.meta.title;
+  const item = flattenNav().find((i) => i.to && i.to.split('?')[0] === route.path);
+  return item?.title ?? 'Tableau de bord';
+});
+
+const userLabel = computed(() => {
+  const u = authStore.user;
+  if (u?.firstName || u?.lastName) return `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim();
+  return u?.email ?? 'Gérante';
+});
+
+const userInitial = computed(() => userLabel.value.charAt(0).toUpperCase());
+
+function handleAction(action: 'search' | 'logout') {
+  if (action === 'search') paletteOpen.value = true;
+  if (action === 'logout') {
+    authStore.logout();
+    notify.info('Tu as été déconnectée.');
+    router.push('/login');
+  }
+}
+
+function onNavigate() {
+  // Referme la barre latérale sur petit écran après une navigation.
+  if (window.innerWidth < 768) sidebarOpen.value = false;
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    paletteOpen.value = true;
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown));
+onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-100 flex flex-col md:flex-row">
-    <!-- Sidebar -->
-    <aside class="w-full md:w-64 bg-white border-r border-gray-200 flex flex-col">
-      <div class="h-16 flex items-center justify-center border-b border-gray-200">
-        <h1 class="text-xl font-bold tracking-widest uppercase">GM Boutique</h1>
-      </div>
-      <nav class="flex-1 p-4 space-y-2">
-        <router-link to="/" class="block px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 text-black">
-          Tableau de bord
-        </router-link>
-        <router-link to="/clients" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-          Clientes
-        </router-link>
-        <router-link to="/articles" class="block px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
-          Articles & Dépôts
-        </router-link>
-      </nav>
-      <div class="p-4 border-t border-gray-200">
-        <button @click="handleLogout" class="w-full px-4 py-2 text-left text-sm font-bold uppercase tracking-widest text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-          Déconnexion
-        </button>
-      </div>
+  <div class="flex h-screen bg-background font-sans text-foreground overflow-hidden">
+    <!-- Fond sombre (mobile) -->
+    <div
+      v-if="sidebarOpen"
+      class="fixed inset-0 z-30 bg-black/30 md:hidden"
+      @click="sidebarOpen = false"
+    />
+
+    <!-- Barre latérale -->
+    <aside
+      class="fixed md:relative inset-y-0 left-0 z-40 h-full shrink-0 overflow-hidden bg-card/60 border-r border-border/50 transition-[width] duration-300 ease-in-out"
+      :class="sidebarOpen ? 'w-[260px]' : 'w-0 border-transparent'"
+    >
+      <SidebarNav @action="handleAction" @navigate="onNavigate" />
     </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
-      <!-- Header -->
-      <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-end px-6">
-        <div class="flex items-center space-x-3">
-          <span class="text-sm font-medium text-gray-700">{{ authStore.user?.email || 'Gérante' }}</span>
-          <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
-            G
+    <!-- Zone principale -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- En-tête -->
+      <header
+        class="h-14 shrink-0 border-b border-border/50 bg-card flex items-center px-4 justify-between"
+      >
+        <div class="flex items-center gap-3 min-w-0">
+          <button
+            class="p-1.5 rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors"
+            :aria-label="sidebarOpen ? 'Réduire le menu' : 'Ouvrir le menu'"
+            @click="sidebarOpen = !sidebarOpen"
+          >
+            <PanelLeftClose v-if="sidebarOpen" class="w-[18px] h-[18px]" :stroke-width="1.5" />
+            <PanelLeftOpen v-else class="w-[18px] h-[18px]" :stroke-width="1.5" />
+          </button>
+          <div class="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+            <span class="truncate">GM Boutique</span>
+            <span class="text-muted-foreground/40">/</span>
+            <span class="font-medium text-foreground truncate">{{ currentTitle }}</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button
+            class="hidden md:flex items-center gap-2 w-64 h-8 px-3 bg-black/5 hover:bg-black/[0.07] rounded-md text-[13px] text-muted-foreground/70 transition-colors"
+            @click="paletteOpen = true"
+          >
+            <Search class="w-4 h-4 shrink-0" :stroke-width="1.5" />
+            <span class="flex-1 text-left">Rechercher…</span>
+            <kbd
+              class="inline-flex items-center h-5 px-1.5 text-[10px] font-mono border border-border/60 rounded bg-card"
+            >
+              ⌘K
+            </kbd>
+          </button>
+          <div
+            class="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[13px] font-semibold text-primary"
+            :title="userLabel"
+          >
+            {{ userInitial }}
           </div>
         </div>
       </header>
 
-      <!-- Page Content -->
-      <div class="flex-1 overflow-auto p-6">
-        <router-view></router-view>
-      </div>
-    </main>
+      <!-- Contenu de la page -->
+      <main class="flex-1 overflow-y-auto bg-black/[0.015] p-6 md:p-8">
+        <router-view v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" :key="route.fullPath" />
+          </Transition>
+        </router-view>
+      </main>
+    </div>
+
+    <CommandPalette v-model:open="paletteOpen" />
   </div>
 </template>
