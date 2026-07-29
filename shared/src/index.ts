@@ -1,19 +1,9 @@
-export * from './enums';
-export * from './user';
-export * from './client';
-export * from './article';
-export * from './brand';
-export * from './document';
+export * from './types/enums';
+export * from './types/user';
+export * from './types/client';
+export * from './types/article';
+export * from './types/brand';
+export * from './types/document';
+export * from './types/api';
+export * from './types/retrocession';
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
-export interface ApiError {
-  message: string;
-  errors?: any;
-}

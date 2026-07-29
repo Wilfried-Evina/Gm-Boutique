@@ -11,5 +11,7 @@ router.post('/', clientController.create);
 router.get('/', clientController.getAll);
 router.get('/:id', clientController.getById);
 router.put('/:id', clientController.update);
+router.get('/:id/articles', clientController.getClientArticles);
+router.get('/:id/retrocessions', clientController.getClientRetrocessions);
 
 export const clientRoutes = router;

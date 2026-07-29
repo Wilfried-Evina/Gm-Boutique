@@ -21,9 +21,28 @@ startCronJobs();
 
 const app = express();
 
+// Forcer HTTPS en production
+if (env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.header('x-forwarded-proto') !== 'https') {
+      res.redirect(`https://${req.header('host')}${req.url}`);
+    } else {
+      next();
+    }
+  });
+}
+
 // Middlewares - Sécurité globale
 app.use(helmet());
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+
+// Validation du Content-Type
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.headers['content-type'] !== 'application/json') {
+    return res.status(415).json({ message: 'Unsupported Media Type: Only application/json is allowed' });
+  }
+  next();
+});
 
 // Limiter les requêtes répétées pour l'API entière (100 req par 15min)
 const limiter = rateLimit({
