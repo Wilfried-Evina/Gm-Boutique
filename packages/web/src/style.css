@@ -2,4 +2,80 @@
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* Palette GM Boutique — identité noir / blanc minimaliste */
+  --color-background: #f7f7f8;
+  --color-foreground: #0a0a0a;
+  --color-card: #ffffff;
+  --color-muted-foreground: #71717a;
+  --color-primary: #0a0a0a;
+  --color-primary-foreground: #ffffff;
+  --color-border: #e4e4e7;
+}
+
+/* Transitions du sélecteur de commande / menus (remplace tailwindcss-animate) */
+@keyframes gm-fade-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.gm-enter-active {
+  animation: gm-fade-zoom 0.15s ease-out;
+}
+
+.gm-fade-enter-active,
+.gm-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.gm-fade-enter-from,
+.gm-fade-leave-to {
+  opacity: 0;
+}
+
+/* Transition entre pages (contenu principal) */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* Transition entre vues de haut niveau (login ↔ application) */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Toasts (notifications) */
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(16px);
+}
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(16px);
+}
+.toast-move {
+  transition: transform 0.25s ease;
 }
