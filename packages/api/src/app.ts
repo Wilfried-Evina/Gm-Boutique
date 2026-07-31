@@ -8,13 +8,28 @@ import { errorHandler } from './middlewares/errorHandler';
 import { authRoutes } from './routes/auth.routes';
 import { clientRoutes } from './routes/client.routes';
 import { articleRoutes } from './routes/article.routes';
+import saleRoutes from './routes/sale.routes';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
 import { startCronJobs } from './services/cron.service';
 
-// Connect to Database
-connectDB();
+import { User } from './models/User';
+
+// Connect to Database and seed
+connectDB().then(async () => {
+  const exists = await User.findOne({ email: 'gerante@gm-boutique.ch' });
+  if (!exists) {
+    await User.create({
+      email: 'gerante@gm-boutique.ch',
+      passwordHash: 'Password123!',
+      role: 'admin',
+      firstName: 'Edima',
+      lastName: 'Evina'
+    });
+    logger.info('✅ Compte administrateur temporaire créé (gerante@gm-boutique.ch / Password123!)');
+  }
+});
 
 // Start Background Jobs
 startCronJobs();
@@ -65,6 +80,7 @@ app.use(hpp());
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/articles', articleRoutes);
+app.use('/api/sales', saleRoutes);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });

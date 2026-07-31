@@ -19,7 +19,7 @@ const seedDB = async () => {
     if (!adminExists) {
       await User.create({
         email: adminEmail,
-        password: 'Password123!', // Mot de passe provisoire à changer
+        passwordHash: 'Password123!', // Mot de passe provisoire à changer
         role: 'admin',
         firstName: 'Edima',
         lastName: 'Evina'
@@ -36,7 +36,7 @@ const seedDB = async () => {
     if (!mariExists) {
       await User.create({
         email: mariEmail,
-        password: 'Password123!', // Mot de passe provisoire à changer
+        passwordHash: 'Password123!', // Mot de passe provisoire à changer
         role: 'admin',
         firstName: 'Arthur',
         lastName: 'Nguekeu'
