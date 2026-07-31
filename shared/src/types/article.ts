@@ -25,6 +25,7 @@ export interface IArticle {
   finalSalePrice?: number;
   finalClientAmount?: number;
   priceReduction?: IPriceReduction;
+  isReduced?: boolean; // Frontend flag to indicate if price is currently reduced
   
   // Status and Tracking
   status: ArticleStatus;
