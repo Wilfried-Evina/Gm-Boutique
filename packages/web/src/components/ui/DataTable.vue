@@ -69,14 +69,16 @@ const alignClass = (a?: string) =>
             :style="col.width ? { width: col.width } : undefined"
             @click="toggleSort(col)"
           >
-            <span class="inline-flex items-center gap-1" :class="col.align === 'right' ? 'flex-row-reverse' : ''">
-              {{ col.label }}
-              <template v-if="col.sortable">
-                <ChevronUp v-if="sortKey === col.key && sortDir === 'asc'" class="w-3.5 h-3.5" :stroke-width="2" />
-                <ChevronDown v-else-if="sortKey === col.key && sortDir === 'desc'" class="w-3.5 h-3.5" :stroke-width="2" />
-                <ChevronsUpDown v-else class="w-3.5 h-3.5 text-muted-foreground/40" :stroke-width="2" />
-              </template>
-            </span>
+            <slot :name="`head-${col.key}`" :col="col">
+              <span class="inline-flex items-center gap-1" :class="col.align === 'right' ? 'flex-row-reverse' : ''">
+                {{ col.label }}
+                <template v-if="col.sortable">
+                  <ChevronUp v-if="sortKey === col.key && sortDir === 'asc'" class="w-3.5 h-3.5" :stroke-width="2" />
+                  <ChevronDown v-else-if="sortKey === col.key && sortDir === 'desc'" class="w-3.5 h-3.5" :stroke-width="2" />
+                  <ChevronsUpDown v-else class="w-3.5 h-3.5 text-muted-foreground/40" :stroke-width="2" />
+                </template>
+              </span>
+            </slot>
           </th>
         </tr>
       </thead>
