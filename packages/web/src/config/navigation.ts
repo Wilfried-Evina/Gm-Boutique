@@ -13,6 +13,7 @@ import {
   Search,
   Settings,
   LogOut,
+  CreditCard,
 } from 'lucide-vue-next';
 
 export type NavItemData = {
@@ -30,35 +31,29 @@ export type NavItemData = {
 
 export type NavGroupData = {
   heading?: string;
+  icon?: Component;
   items: NavItemData[];
 };
 
 export const navGroups: NavGroupData[] = [
   {
     items: [
-      { id: 'search', title: 'Recherche', icon: Search, action: 'search', shortcut: '⌘K' },
       { id: 'dashboard', title: 'Tableau de bord', icon: LayoutDashboard, to: '/' },
       { id: 'alertes', title: 'Alertes', icon: Bell, to: '/alertes', badge: 3 },
     ],
   },
   {
-    heading: 'Gestion',
+    icon: Users,
     items: [
+      { id: 'caisse', title: 'Caisse', icon: CreditCard, to: '/caisse' },
       { id: 'clients', title: 'Clientes', icon: Users, to: '/clients' },
-      {
-        id: 'articles',
-        title: 'Articles & Dépôts',
-        icon: Package,
-        to: '/articles',
-        children: [
-          { id: 'a-on-sale', title: 'En vente', icon: Tag, to: '/articles?status=on_sale' },
-          { id: 'a-sold', title: 'Vendus', icon: CheckCircle2, to: '/articles?status=sold' },
-          { id: 'a-returned', title: 'Retournés', icon: Undo2, to: '/articles?status=returned' },
-          { id: 'a-expired', title: 'Expirés', icon: Clock, to: '/articles?filter=expired' },
-        ],
-      },
+      { id: 'articles', title: 'Articles', icon: Package, to: '/articles' },
+      { id: 'a-on-sale', title: 'En vente', icon: Tag, to: '/articles/en-vente' },
+      { id: 'a-sold', title: 'Vendus', icon: CheckCircle2, to: '/articles/vendus' },
+      { id: 'a-returned', title: 'Retournés', icon: Undo2, to: '/articles/retournes' },
+      { id: 'a-expired', title: 'Expirés', icon: Clock, to: '/articles/expires' },
       { id: 'retrocessions', title: 'Rétrocessions', icon: Banknote, to: '/retrocessions' },
-      { id: 'documents', title: 'Documents', icon: FileText, to: '/documents' },
+      { id: 'factures', title: 'Factures', icon: FileText, to: '/factures' },
     ],
   },
 ];
