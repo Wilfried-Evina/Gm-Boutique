@@ -6,6 +6,13 @@ import Dashboard from '../pages/Dashboard.vue';
 const Placeholder = () => import('../pages/Placeholder.vue');
 const ClientsList = () => import('../pages/clients/ClientsList.vue');
 const ClientDetail = () => import('../pages/clients/ClientDetail.vue');
+const ArticlesList = () => import('../pages/articles/ArticlesList.vue');
+const OnSaleList = () => import('../pages/articles/OnSaleList.vue');
+const SoldList = () => import('../pages/articles/SoldList.vue');
+const ReturnedList = () => import('../pages/articles/ReturnedList.vue');
+const ExpiredList = () => import('../pages/articles/ExpiredList.vue');
+const Pos = () => import('../pages/Pos.vue');
+const FacturesList = () => import('../pages/FacturesList.vue');
 
 const router = createRouter({
   history: createWebHistory(),
@@ -17,11 +24,16 @@ const router = createRouter({
       children: [
         { path: '', name: 'Dashboard', component: Dashboard, meta: { title: 'Tableau de bord' } },
         { path: 'alertes', name: 'Alertes', component: Placeholder, meta: { title: 'Alertes' } },
+        { path: 'caisse', name: 'Caisse', component: Pos, meta: { title: 'Caisse' } },
         { path: 'clients', name: 'Clientes', component: ClientsList, meta: { title: 'Clientes' } },
         { path: 'clients/:id', name: 'ClientDetail', component: ClientDetail, meta: { title: 'Fiche cliente' } },
-        { path: 'articles', name: 'Articles', component: Placeholder, meta: { title: 'Articles & Dépôts' } },
+        { path: 'articles', name: 'ArticlesList', component: ArticlesList, meta: { title: 'Tous les Articles' } },
+        { path: 'articles/en-vente', name: 'OnSaleList', component: OnSaleList, meta: { title: 'En vente' } },
+        { path: 'articles/vendus', name: 'SoldList', component: SoldList, meta: { title: 'Vendus' } },
+        { path: 'articles/retournes', name: 'ReturnedList', component: ReturnedList, meta: { title: 'Retournés' } },
+        { path: 'articles/expires', name: 'ExpiredList', component: ExpiredList, meta: { title: 'Expirés' } },
         { path: 'retrocessions', name: 'Retrocessions', component: Placeholder, meta: { title: 'Rétrocessions' } },
-        { path: 'documents', name: 'Documents', component: Placeholder, meta: { title: 'Documents' } },
+        { path: 'factures', name: 'Factures', component: FacturesList, meta: { title: 'Factures' } },
         { path: 'settings', name: 'Parametres', component: Placeholder, meta: { title: 'Paramètres' } },
       ],
     },
