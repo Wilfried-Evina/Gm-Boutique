@@ -64,9 +64,18 @@ export const clientController = {
         .limit(limit);
 
       const total = await Client.countDocuments(query);
+      
+      // Fetch article count for each client
+      const { Article } = await import('../models/Article');
+      const clientsWithCounts = await Promise.all(
+        clients.map(async (client) => {
+          const articleCount = await Article.countDocuments({ clientId: client._id });
+          return { ...client.toObject(), articleCount };
+        })
+      );
 
       res.json({
-        data: clients,
+        data: clientsWithCounts,
         total,
         page,
         limit,
