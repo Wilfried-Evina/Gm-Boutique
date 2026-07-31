@@ -6,4 +6,4 @@ export * from './types/brand';
 export * from './types/document';
 export * from './types/api';
 export * from './types/retrocession';
-
+export * from './types/sale';
