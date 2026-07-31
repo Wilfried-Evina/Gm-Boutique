@@ -4,6 +4,7 @@ import { Article } from '../models/Article';
 import { Client } from '../models/Client';
 import { PaginatedResponse, ArticleStatus, ActionOnExpiry } from '@gm-boutique/shared';
 import crypto from 'crypto';
+import bwipjs from 'bwip-js';
 
 // Validation Schemas
 const priceReductionSchema = z.object({
@@ -177,6 +178,31 @@ export const articleController = {
       }).populate('clientId', 'firstName lastName phone');
       
       res.json(expiredArticles);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getBarcodeImage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const article = await Article.findById(req.params.id);
+      if (!article) return res.status(404).json({ message: 'Article not found' });
+
+      bwipjs.toBuffer({
+        bcid: 'code128',
+        text: article.barcode,
+        scale: 3,
+        height: 10,
+        includetext: true,
+        textxalign: 'center',
+      }, (err, png) => {
+        if (err) {
+          return next(err);
+        } else {
+          res.set('Content-Type', 'image/png');
+          res.send(png);
+        }
+      });
     } catch (error) {
       next(error);
     }
