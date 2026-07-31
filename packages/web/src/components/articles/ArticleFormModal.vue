@@ -39,20 +39,32 @@
         <p v-if="clients.length === 0" class="text-xs text-amber-600 mt-1">Aucune cliente disponible. Veuillez d'abord en créer une.</p>
       </div>
 
-      <!-- Caractéristiques -->
+      <!-- Caractéristiques (avec autocomplétion dynamique) -->
       <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Marque</label>
-          <input type="text" v-model="form.brand" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: Chanel" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Type</label>
-          <input type="text" v-model="form.type" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: Sac à main" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Couleur</label>
-          <input type="text" v-model="form.color" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: Noir" />
-        </div>
+        <AutocompleteInput
+          v-model="form.brand"
+          label="Marque"
+          placeholder="ex: Chanel"
+          required
+          :fetcher="searchBrands"
+          :creator="createBrand"
+        />
+        <AutocompleteInput
+          v-model="form.type"
+          label="Type"
+          placeholder="ex: Sac à main"
+          required
+          :fetcher="searchTypes"
+          :creator="createType"
+        />
+        <AutocompleteInput
+          v-model="form.color"
+          label="Couleur"
+          placeholder="ex: Noir"
+          required
+          :fetcher="searchColors"
+          :creator="createColor"
+        />
         <div>
           <label class="block text-sm font-medium text-gray-700">Taille</label>
           <input type="text" v-model="form.size" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: M ou 38" />
@@ -126,6 +138,34 @@
         </div>
       </div>
 
+      <!-- Consentement CGU (obligatoire pour un nouveau dépôt) -->
+      <div v-if="!articleToEdit" class="bg-gray-50 border border-gray-200 rounded-md p-4">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            v-model="cguAccepted"
+            class="mt-0.5 h-4 w-4 text-black focus:ring-black border-gray-300 rounded shrink-0"
+          />
+          <span class="text-sm text-gray-700 leading-snug">
+            Je certifie que la cliente est l'unique <strong>propriétaire des articles déposés</strong>
+            et j'accepte, en son nom, les
+            <button
+              type="button"
+              @click="cguModalOpen = true"
+              class="text-black underline underline-offset-2 hover:text-gray-600 font-medium"
+            >
+              Conditions Générales de GM Boutique</button>.
+            <button
+              type="button"
+              @click="cguModalOpen = true"
+              class="ml-1 text-gray-500 hover:text-black underline-offset-2 hover:underline"
+            >
+              (Lire les CGU)
+            </button>
+          </span>
+        </label>
+      </div>
+
       <!-- Actions -->
       <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
         <button
@@ -137,21 +177,34 @@
         </button>
         <button
           type="submit"
-          :disabled="isSubmitting"
-          class="bg-black border border-transparent text-white hover:bg-gray-800 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-50"
+          :disabled="isSubmitting || (!articleToEdit && !cguAccepted)"
+          class="bg-black border border-transparent text-white hover:bg-gray-800 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ isSubmitting ? 'Enregistrement...' : 'Enregistrer le Dépôt' }}
         </button>
       </div>
     </form>
+
+    <!-- Modale d'affichage des CGU -->
+    <CguModal v-model:open="cguModalOpen" show-accept @accept="cguAccepted = true" />
   </Modal>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue';
 import Modal from '../ui/Modal.vue';
+import CguModal from '../CguModal.vue';
+import AutocompleteInput from '../ui/AutocompleteInput.vue';
 import { useArticleStore } from '../../stores/articles';
-import { listClients } from '../../api/clients'; // On utilise l'api cliente créée par Arthur
+import { listClients, updateClient } from '../../api/clients'; // On utilise l'api cliente créée par Arthur
+import {
+  searchBrands,
+  createBrand,
+  searchColors,
+  createColor,
+  searchTypes,
+  createType,
+} from '../../api/catalog';
 import type { CreateArticleDTO } from '../../api/articles';
 
 const props = defineProps<{
@@ -168,6 +221,10 @@ const articleStore = useArticleStore();
 const isSubmitting = ref(false);
 const clients = ref<any[]>([]);
 const hasReduction = ref(false);
+
+// Consentement CGU (obligatoire pour un nouveau dépôt)
+const cguAccepted = ref(false);
+const cguModalOpen = ref(false);
 
 // Logique pour le dropdown de recherche client
 const clientSearchQuery = ref('');
@@ -247,6 +304,7 @@ onMounted(async () => {
 const resetForm = () => {
   Object.assign(form, initialForm());
   hasReduction.value = false;
+  cguAccepted.value = false;
 };
 
 watch(() => props.isOpen, (newVal) => {
@@ -291,11 +349,18 @@ const submit = async () => {
     alert("Veuillez sélectionner une cliente déposante.");
     return;
   }
-  
+
+  // Consentement CGU obligatoire pour un nouveau dépôt (filet de sécurité,
+  // le bouton est déjà désactivé tant que la case n'est pas cochée).
+  if (!props.articleToEdit && !cguAccepted.value) {
+    alert("Vous devez accepter les Conditions Générales pour enregistrer le dépôt.");
+    return;
+  }
+
   isSubmitting.value = true;
   try {
     const payload = { ...form };
-    
+
     // Si pas de réduction, on efface l'objet priceReduction
     if (!hasReduction.value) {
       delete payload.priceReduction;
@@ -310,9 +375,14 @@ const submit = async () => {
     if (props.articleToEdit) {
       await articleStore.updateArticle(props.articleToEdit._id, payload);
     } else {
+      // Enregistre l'acceptation des CGU sur la cliente (date horodatée côté
+      // backend) AVANT le dépôt : requis pour que le backend autorise la création.
+      if (!selectedClient.value?.cguAccepted) {
+        await updateClient(form.clientId, { cguAccepted: true });
+      }
       await articleStore.createArticle(payload);
     }
-    
+
     emit('saved');
     closeModal();
   } catch (error) {
