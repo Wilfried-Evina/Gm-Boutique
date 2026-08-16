@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck } from 'lucide-vue-next';
+import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download } from 'lucide-vue-next';
 import type { IClient, IArticle, IRetrocessionSummary } from '@gm-boutique/shared';
 import {
   getClient,
@@ -13,6 +13,11 @@ import { formatCHF, formatDate } from '../../utils/format';
 import DataTable, { type Column } from '../../components/ui/DataTable.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import ClientFormModal from '../../components/clients/ClientFormModal.vue';
+import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
+import ReceiptModal from '../../components/clients/ReceiptModal.vue';
+import { createReceipt, getClientReceipts, type IReceipt } from '../../api/receipts';
+import { updateClient, generateClientProfilePDF } from '../../api/clients';
+import { apiClient } from '../../api/client';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,20 +26,41 @@ const notify = useNotificationsStore();
 const client = ref<IClient | null>(null);
 const articles = ref<IArticle[]>([]);
 const retrocession = ref<IRetrocessionSummary | null>(null);
+const receipts = ref<IReceipt[]>([]);
 const loading = ref(true);
-const activeTab = ref<'articles' | 'retrocessions'>('articles');
+const isGeneratingPdf = ref(false);
+const activeTab = ref<'articles' | 'retrocessions' | 'receipts'>('articles');
 const formOpen = ref(false);
+
+const selectedArticles = ref<string[]>([]);
+const signatureModalOpen = ref(false);
+const signatureType = ref<'first_deposit' | 'standard'>('standard');
+const pendingReceiptType = ref<'deposit' | 'restitution' | null>(null);
+
+const selectedReceipt = ref<IReceipt | null>(null);
+const receiptModalOpen = ref(false);
 
 const clientId = computed(() => route.params.id as string);
 const fullName = computed(() =>
   client.value ? `${client.value.firstName} ${client.value.lastName}` : ''
 );
 
+const canRestitute = computed(() => {
+  if (selectedArticles.value.length === 0) return false;
+  return selectedArticles.value.every(id => {
+    const article = articles.value.find(a => a._id === id);
+    return article && ['deposited', 'on_sale', 'expired'].includes(article.status);
+  });
+});
+
 const articleColumns: Column[] = [
   { key: 'barcode', label: 'Code', width: '130px' },
   { key: 'brand', label: 'Marque', sortable: true },
   { key: 'type', label: 'Type' },
-  { key: 'publicPrice', label: 'Prix public', align: 'right', sortable: true },
+  { key: 'color', label: 'Couleur' },
+  { key: 'size', label: 'Taille' },
+  { key: 'description', label: 'Description' },
+  { key: 'clientPrice', label: 'Gain (CHF)', align: 'right', sortable: true },
   { key: 'status', label: 'Statut', align: 'center' },
   { key: 'createdAt', label: 'Déposé le', width: '120px', sortable: true },
 ];
@@ -42,14 +68,16 @@ const articleColumns: Column[] = [
 async function load() {
   loading.value = true;
   try {
-    const [c, a, r] = await Promise.all([
+    const [c, a, r, rcpts] = await Promise.all([
       getClient(clientId.value),
       getClientArticles(clientId.value).catch(() => [] as IArticle[]),
       getClientRetrocessions(clientId.value).catch(() => null),
+      getClientReceipts(clientId.value).catch(() => [] as IReceipt[])
     ]);
     client.value = c;
     articles.value = a;
     retrocession.value = r;
+    receipts.value = rcpts;
   } catch {
     notify.error('Cliente introuvable.');
     router.push('/clients');
@@ -62,12 +90,91 @@ function onSaved(updated: IClient) {
   client.value = updated;
 }
 
+function openCguSignature() {
+  signatureType.value = 'first_deposit';
+  pendingReceiptType.value = null;
+  signatureModalOpen.value = true;
+}
+
+function generateReceipt(type: 'deposit' | 'restitution') {
+  if (selectedArticles.value.length === 0) {
+    notify.error("Veuillez sélectionner au moins un article.");
+    return;
+  }
+  signatureType.value = 'standard';
+  pendingReceiptType.value = type;
+  signatureModalOpen.value = true;
+}
+
+async function handleSignatureReceived(payload: { signatureBase64: string; cguAccepted: boolean }) {
+  if (signatureType.value === 'first_deposit') {
+    try {
+      await updateClient(clientId.value, {
+        cguAccepted: payload.cguAccepted,
+        cguAcceptedAt: new Date().toISOString(),
+        signatureData: payload.signatureBase64,
+      } as any);
+      notify.success('CGU acceptées avec succès.');
+      load();
+    } catch {
+      notify.error("Erreur lors de l'enregistrement de la signature.");
+    }
+  } else if (pendingReceiptType.value) {
+    try {
+      await createReceipt({
+        clientId: clientId.value,
+        type: pendingReceiptType.value,
+        articleIds: selectedArticles.value,
+        signatureData: payload.signatureBase64
+      });
+      notify.success(pendingReceiptType.value === 'deposit' ? 'Bon de dépôt généré.' : 'Bon de restitution généré.');
+      selectedArticles.value = [];
+      load();
+    } catch {
+      notify.error("Erreur lors de la génération du bon.");
+    }
+  }
+  signatureModalOpen.value = false;
+}
+
+async function downloadClientProfile() {
+  if (isGeneratingPdf.value) return;
+  isGeneratingPdf.value = true;
+  try {
+    const doc = await generateClientProfilePDF(clientId.value);
+    
+    // Declencher le telechargement (utilisation de l'URL absolue via apiClient)
+    const token = localStorage.getItem('access_token');
+    const response = await fetch(`${apiClient.defaults.baseURL}/documents/${doc._id}/download`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.ok) throw new Error("Erreur de téléchargement");
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Fiche_Cliente_${doc.referenceNumber}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    notify.success('Fiche PDF générée et téléchargée avec succès.');
+  } catch (error) {
+    notify.error('Erreur lors de la génération du PDF.');
+  } finally {
+    isGeneratingPdf.value = false;
+  }
+}
+
 watch(clientId, load);
 onMounted(load);
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto">
+  <div class="w-full">
     <button
       class="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors mb-5"
       @click="router.push('/clients')"
@@ -92,13 +199,31 @@ onMounted(load);
             </span>
           </div>
         </div>
-        <button
-          class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
-          @click="formOpen = true"
-        >
-          <Pencil class="w-4 h-4" :stroke-width="1.75" />
-          Modifier
-        </button>
+        <div class="flex gap-2">
+          <button
+            class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
+            @click="downloadClientProfile"
+            :disabled="isGeneratingPdf"
+          >
+            <Download v-if="!isGeneratingPdf" class="w-4 h-4" :stroke-width="1.75" />
+            <span v-else class="w-4 h-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin"></span>
+            {{ isGeneratingPdf ? 'Génération...' : 'Fiche PDF' }}
+          </button>
+          <button
+            v-if="!client.cguAccepted"
+            class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+            @click="openCguSignature"
+          >
+            Faire signer les CGU
+          </button>
+          <button
+            class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
+            @click="formOpen = true"
+          >
+            <Pencil class="w-4 h-4" :stroke-width="1.75" />
+            Modifier
+          </button>
+        </div>
       </div>
 
       <!-- Informations personnelles -->
@@ -155,18 +280,45 @@ onMounted(load);
         >
           Rétrocessions
         </button>
+        <button
+          class="px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors"
+          :class="activeTab === 'receipts' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
+          @click="activeTab = 'receipts'"
+        >
+          Bons & Reçus
+        </button>
       </div>
 
       <!-- Onglet Articles -->
       <div v-if="activeTab === 'articles'">
-        <DataTable :columns="articleColumns" :rows="articles" row-key="_id" empty-text="Aucun article déposé.">
+        <div class="flex items-center justify-between mb-4">
+          <div class="text-sm font-medium">
+            <span v-if="selectedArticles.length > 0">{{ selectedArticles.length }} sélectionné(s)</span>
+          </div>
+          <div class="flex gap-2" v-if="selectedArticles.length > 0">
+            <button class="h-9 px-3 bg-black text-white rounded-md text-xs font-medium hover:bg-gray-800" @click="generateReceipt('deposit')">
+              Générer Bon de Dépôt
+            </button>
+            <button v-if="canRestitute" class="h-9 px-3 bg-white border border-gray-300 rounded-md text-xs font-medium hover:bg-gray-50" @click="generateReceipt('restitution')">
+              Restituer Articles
+            </button>
+          </div>
+        </div>
+        <DataTable 
+          :columns="articleColumns" 
+          :rows="articles" 
+          row-key="_id" 
+          empty-text="Aucun article déposé."
+          selectable
+          v-model:selected="selectedArticles"
+        >
           <template #cell-barcode="{ value }">
             <span class="font-mono text-[12px] text-foreground">{{ value }}</span>
           </template>
           <template #cell-brand="{ value }">
             <span class="font-medium text-foreground">{{ value }}</span>
           </template>
-          <template #cell-publicPrice="{ value }">
+          <template #cell-clientPrice="{ value }">
             {{ formatCHF(value) }}
           </template>
           <template #cell-status="{ value }">
@@ -177,9 +329,7 @@ onMounted(load);
           </template>
         </DataTable>
       </div>
-
-      <!-- Onglet Rétrocessions -->
-      <div v-else>
+      <div v-else-if="activeTab === 'retrocessions'">
         <div v-if="retrocession" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
             <p class="text-[13px] text-muted-foreground">Articles vendus (non payés)</p>
@@ -203,8 +353,48 @@ onMounted(load);
           Aucune donnée de rétrocession.
         </div>
       </div>
+      <div v-else-if="activeTab === 'receipts'">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div 
+            v-for="receipt in receipts" 
+            :key="receipt._id" 
+            class="bg-card border border-border/60 rounded-xl p-4 shadow-sm cursor-pointer hover:border-foreground/30 hover:shadow-md transition-all"
+            @click="selectedReceipt = receipt; receiptModalOpen = true"
+          >
+            <div class="flex justify-between items-start mb-2">
+              <span class="font-mono text-sm font-semibold">{{ receipt.referenceNumber }}</span>
+              <span class="text-xs font-medium px-2 py-1 rounded-full" :class="receipt.type === 'deposit' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'">
+                {{ receipt.type === 'deposit' ? 'Dépôt' : 'Restitution' }}
+              </span>
+            </div>
+            <p class="text-xs text-muted-foreground mb-3">{{ formatDate(receipt.createdAt) }}</p>
+            <div class="text-sm mb-3">
+              <span class="font-medium">{{ receipt.articleIds.length }}</span> article(s)
+            </div>
+            <div class="mt-2 pt-2 border-t border-border/60">
+              <img :src="receipt.signatureData" class="h-10 object-contain mix-blend-multiply" />
+            </div>
+          </div>
+          <div v-if="!receipts.length" class="col-span-full text-center py-10 text-muted-foreground text-sm border border-dashed border-border/60 rounded-xl">
+            Aucun bon généré.
+          </div>
+        </div>
+      </div>
 
       <ClientFormModal v-model:open="formOpen" :client="client" @saved="onSaved" />
+
+      <QrSignatureModal
+        :is-open="signatureModalOpen"
+        :signature-type="signatureType"
+        @close="signatureModalOpen = false"
+        @signed="handleSignatureReceived"
+      />
+
+      <ReceiptModal 
+        v-model:open="receiptModalOpen" 
+        :receipt="selectedReceipt" 
+        :client="client" 
+      />
     </template>
   </div>
 </template>

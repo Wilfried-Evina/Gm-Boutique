@@ -1,6 +1,6 @@
 <template>
   <Modal :open="isOpen" :title="articleToEdit ? `Modifier l'Article` : `Déposer un Article`" @update:open="closeModal">
-    <form @submit.prevent="submit" class="space-y-6">
+    <form @submit.prevent="submit(true)" class="space-y-6">
       
       <!-- Cliente (Disabled in edit mode to prevent changing owner) -->
       <div class="relative" ref="clientDropdownRef">
@@ -42,20 +42,24 @@
       <!-- Caractéristiques -->
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700">Marque</label>
-          <input type="text" v-model="form.brand" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: Chanel" />
+          <Autocomplete v-model="form.brand" label="Marque" placeholder="ex: Chanel" field="brand" />
+          <p v-if="errors.brand" class="text-xs text-red-500 mt-1">{{ errors.brand }}</p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700">Type</label>
-          <input type="text" v-model="form.type" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: Sac à main" />
+          <Autocomplete v-model="form.type" label="Type" placeholder="ex: Sac à main" field="type" />
+          <p v-if="errors.type" class="text-xs text-red-500 mt-1">{{ errors.type }}</p>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700">Couleur</label>
-          <input type="text" v-model="form.color" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: Noir" />
+          <Autocomplete v-model="form.color" label="Couleur" placeholder="ex: Noir" field="color" />
+          <p v-if="errors.color" class="text-xs text-red-500 mt-1">{{ errors.color }}</p>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700">Taille</label>
           <input type="text" v-model="form.size" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" placeholder="ex: M ou 38" />
+        </div>
+        <div class="col-span-2">
+          <label class="block text-sm font-medium text-gray-700">Description</label>
+          <textarea v-model="form.description" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm px-3 py-2 border" placeholder="Détails supplémentaires..."></textarea>
         </div>
       </div>
 
@@ -126,6 +130,33 @@
         </div>
       </div>
 
+      <!-- Aperçu Code-barres (en mode Édition) -->
+      <div v-if="articleToEdit" class="bg-gray-50 p-4 rounded-md border border-gray-200 flex flex-col items-center justify-center">
+        <h4 class="text-sm font-semibold text-gray-900 mb-2">Code-barres (Aperçu)</h4>
+        <svg ref="barcodeRef"></svg>
+      </div>
+
+      <!-- Acceptation CGU conditionnelle (Signature requise) -->
+      <div v-if="selectedClient && !selectedClient.cguAccepted" class="bg-amber-50 p-4 rounded-md border border-amber-200 flex flex-col items-start gap-3">
+        <p class="text-sm font-medium text-amber-900">
+          Cette déposante n'a pas encore signé les Conditions Générales. Une signature électronique est requise pour enregistrer le dépôt.
+        </p>
+        <button type="button" @click="cguModalOpen = true" class="text-amber-700 underline text-sm hover:text-amber-900">Lire les CGU</button>
+        
+        <div v-if="localCguAccepted" class="flex items-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded-md border border-green-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+          <span class="text-sm font-semibold">CGU acceptées et signées !</span>
+        </div>
+        <button 
+          v-else
+          type="button" 
+          @click="qrModalOpen = true" 
+          class="flex items-center justify-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700 transition font-medium text-sm w-full"
+        >
+          Faire signer les CGU
+        </button>
+      </div>
+
       <!-- Actions -->
       <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
         <button
@@ -136,20 +167,42 @@
           Annuler
         </button>
         <button
-          type="submit"
-          :disabled="isSubmitting"
+          v-if="!articleToEdit"
+          type="button"
+          @click="submit(false)"
+          :disabled="isSubmitting || (selectedClient && !selectedClient.cguAccepted && !localCguAccepted)"
+          class="bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50"
+        >
+          Enregistrer et Ajouter un autre
+        </button>
+        <button
+          type="button"
+          @click="submit(true)"
+          :disabled="isSubmitting || (selectedClient && !selectedClient.cguAccepted && !localCguAccepted)"
           class="bg-black border border-transparent text-white hover:bg-gray-800 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-50"
         >
-          {{ isSubmitting ? 'Enregistrement...' : 'Enregistrer le Dépôt' }}
+          {{ isSubmitting ? 'Enregistrement...' : (articleToEdit ? 'Enregistrer les modifications' : 'Enregistrer et Fermer') }}
         </button>
       </div>
     </form>
+    <CguModal v-model:open="cguModalOpen" />
+    <QrSignatureModal 
+      :isOpen="qrModalOpen" 
+      signatureType="first_deposit"
+      @close="qrModalOpen = false" 
+      @signed="handleSignature"
+    />
   </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, onUnmounted, watch } from 'vue';
+import { ref, reactive, onMounted, computed, onUnmounted, watch, nextTick } from 'vue';
+import { z } from 'zod';
+import JsBarcode from 'jsbarcode';
+import Autocomplete from '../ui/Autocomplete.vue';
 import Modal from '../ui/Modal.vue';
+import CguModal from '../ui/CguModal.vue';
+import QrSignatureModal from '../pos/QrSignatureModal.vue';
 import { useArticleStore } from '../../stores/articles';
 import { listClients } from '../../api/clients'; // On utilise l'api cliente créée par Arthur
 import type { CreateArticleDTO } from '../../api/articles';
@@ -168,6 +221,12 @@ const articleStore = useArticleStore();
 const isSubmitting = ref(false);
 const clients = ref<any[]>([]);
 const hasReduction = ref(false);
+const localCguAccepted = ref(false);
+const cguModalOpen = ref(false);
+const qrModalOpen = ref(false);
+const signatureData = ref('');
+const barcodeRef = ref<SVGSVGElement | null>(null);
+const errors = ref<Record<string, string>>({});
 
 // Logique pour le dropdown de recherche client
 const clientSearchQuery = ref('');
@@ -192,6 +251,14 @@ const selectClient = (client: any) => {
   form.clientId = client._id;
   clientSearchQuery.value = '';
   isClientDropdownOpen.value = false;
+};
+
+const handleSignature = (payload: { signatureBase64: string, cguAccepted: boolean }) => {
+  if (payload.cguAccepted) {
+    localCguAccepted.value = true;
+    signatureData.value = payload.signatureBase64;
+    qrModalOpen.value = false;
+  }
 };
 
 const clearClient = () => {
@@ -247,11 +314,24 @@ onMounted(async () => {
 const resetForm = () => {
   Object.assign(form, initialForm());
   hasReduction.value = false;
+  localCguAccepted.value = false;
+  signatureData.value = '';
+  errors.value = {};
 };
 
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     if (props.articleToEdit) {
+      nextTick(() => {
+        if (barcodeRef.value && props.articleToEdit.barcode) {
+          JsBarcode(barcodeRef.value, props.articleToEdit.barcode, {
+            format: "CODE128",
+            width: 2,
+            height: 40,
+            displayValue: true
+          });
+        }
+      });
       // Populating the form with existing article data
       form.clientId = props.articleToEdit.clientId._id || props.articleToEdit.clientId;
       form.brand = props.articleToEdit.brand;
@@ -286,9 +366,31 @@ const closeModal = () => {
   emit('close');
 };
 
-const submit = async () => {
+const articleSchema = z.object({
+  brand: z.string().min(1, 'Requis'),
+  type: z.string().min(1, 'Requis'),
+  color: z.string().min(1, 'Requis'),
+  clientPrice: z.number().min(0, 'Le prix ne peut pas être négatif'),
+  publicPrice: z.number().min(0, 'Le prix ne peut pas être négatif')
+});
+
+const submit = async (closeAfter: boolean = true) => {
+  errors.value = {};
   if (!form.clientId) {
     alert("Veuillez sélectionner une cliente déposante.");
+    return;
+  }
+  
+  try {
+    articleSchema.parse(form);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      const fieldErrors: Record<string, string> = {};
+      err.errors.forEach(e => {
+        if (e.path[0]) fieldErrors[e.path[0].toString()] = e.message;
+      });
+      errors.value = fieldErrors;
+    }
     return;
   }
   
@@ -307,6 +409,13 @@ const submit = async () => {
       }
     }
 
+    if (selectedClient.value && !selectedClient.value.cguAccepted && localCguAccepted.value) {
+      (payload as any).cguAccepted = true;
+      if (signatureData.value) {
+        (payload as any).signatureData = signatureData.value;
+      }
+    }
+
     if (props.articleToEdit) {
       await articleStore.updateArticle(props.articleToEdit._id, payload);
     } else {
@@ -314,7 +423,25 @@ const submit = async () => {
     }
     
     emit('saved');
-    closeModal();
+    if (closeAfter) {
+      closeModal();
+    } else {
+      // Garder les informations de la cliente pour l'article suivant
+      const currentClientId = form.clientId;
+      const currentCguStatus = localCguAccepted.value;
+      const currentSignature = signatureData.value;
+      
+      resetForm();
+      
+      form.clientId = currentClientId;
+      localCguAccepted.value = currentCguStatus;
+      signatureData.value = currentSignature;
+      
+      // Update selected client internally so we don't prompt for signature again
+      if (selectedClient.value) {
+        selectedClient.value.cguAccepted = true;
+      }
+    }
   } catch (error) {
     console.error(error);
   } finally {

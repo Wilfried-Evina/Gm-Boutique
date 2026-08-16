@@ -87,6 +87,9 @@ app.use(mongoSanitize());
 app.use(hpp());
 
 import signatureRoutes from './routes/signature.routes';
+import settingsRoutes from './routes/settings.routes';
+import documentRoutes from './routes/document.routes';
+import receiptRoutes from './routes/receipt.routes';
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -94,6 +97,13 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/articles', articleRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/signatures', signatureRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/receipts', receiptRoutes);
+app.use('/api/documents', documentRoutes);
+
+// Servir les documents uploadés
+import path from 'path';
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });

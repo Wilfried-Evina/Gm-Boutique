@@ -8,6 +8,7 @@ router.use(authenticate);
 
 router.post('/', articleController.create);
 router.get('/', articleController.getAll);
+router.get('/suggestions', articleController.getSuggestions);
 router.get('/expired', articleController.getExpired);
 router.get('/scan/:barcode', articleController.getByBarcode);
 router.get('/:id', articleController.getById);

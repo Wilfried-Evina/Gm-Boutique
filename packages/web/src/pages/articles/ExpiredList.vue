@@ -115,11 +115,4 @@ const openBarcodeScanner = () => {
   }
 };
 
-const validatePriceAndSell = (item: any) => {
-  // Dans un cas réel complexe, une modale de confirmation du prix final s'ouvre.
-  // Ici on valide directement le prix de base pour simuler la caisse.
-  if (confirm(`Confirmer la vente de ${item.brand} au prix de ${item.publicPrice} CHF ?`)) {
-     articleStore.changeStatus(item._id, 'sold');
-  }
-};
 </script>

@@ -7,11 +7,11 @@ export interface JwtPayload {
 }
 
 export const generateAccessToken = (payload: JwtPayload): string => {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.ACCESS_TOKEN_EXPIRY });
+  return jwt.sign(payload, env.JWT_SECRET as string, { expiresIn: env.ACCESS_TOKEN_EXPIRY as any });
 };
 
 export const generateRefreshToken = (payload: JwtPayload): string => {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.REFRESH_TOKEN_EXPIRY });
+  return jwt.sign(payload, env.JWT_SECRET as string, { expiresIn: env.REFRESH_TOKEN_EXPIRY as any });
 };
 
 export const verifyToken = (token: string): JwtPayload => {
