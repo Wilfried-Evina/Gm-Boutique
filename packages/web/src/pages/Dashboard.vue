@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/auth';
 
 const authStore = useAuthStore();
 
+
 const prenom = computed(() => authStore.user?.firstName ?? 'Gérante');
 
 function formatCHF(value: number): string {

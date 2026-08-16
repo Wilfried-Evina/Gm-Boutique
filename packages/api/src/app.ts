@@ -49,7 +49,17 @@ if (env.NODE_ENV === 'production') {
 
 // Middlewares - Sécurité globale
 app.use(helmet());
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    // Autoriser localhost ET les IP du réseau local (192.168.x.x, 10.x.x.x)
+    const allowed = !origin
+      || origin.includes('localhost')
+      || origin.includes('127.0.0.1')
+      || /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
+    callback(null, allowed ? origin : false);
+  },
+  credentials: true
+}));
 
 // Validation du Content-Type
 app.use((req, res, next) => {
@@ -76,14 +86,34 @@ app.use(mongoSanitize());
 // Prévenir la pollution des paramètres HTTP
 app.use(hpp());
 
+import signatureRoutes from './routes/signature.routes';
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/articles', articleRoutes);
 app.use('/api/sales', saleRoutes);
+app.use('/api/signatures', signatureRoutes);
 
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });
+});
+
+// Retourne l'IP réseau locale pour que le QR code pointe vers la bonne adresse
+app.get('/api/network-info', (req, res) => {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  let ip = 'localhost';
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ip = iface.address;
+        break;
+      }
+    }
+    if (ip !== 'localhost') break;
+  }
+  res.json({ ip });
 });
 
 // Error Handler Middleware

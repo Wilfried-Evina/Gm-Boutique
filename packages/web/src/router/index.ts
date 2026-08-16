@@ -38,6 +38,12 @@ const router = createRouter({
       ],
     },
     {
+      path: '/sign/:token',
+      name: 'SignatureMobile',
+      component: () => import('../pages/SignatureMobilePage.vue'),
+      meta: { requiresAuth: false, title: 'Signature Client' },
+    },
+    {
       path: '/login',
       name: 'Login',
       component: () => import('../pages/Login.vue'), 
