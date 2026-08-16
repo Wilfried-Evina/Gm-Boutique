@@ -35,9 +35,6 @@
 
       <template #cell-actions="{ row: item }">
         <div class="flex justify-end space-x-2">
-          <!-- Action: Vendu -->
-          <button @click="validatePriceAndSell(item)" class="text-xs font-medium text-green-600 hover:text-green-900">Marquer Vendu</button>
-          
           <!-- Action: Restituer -->
           <button @click="articleStore.changeStatus(item._id, 'returned')" class="text-xs font-medium text-orange-600 hover:text-orange-900">Restituer</button>
         </div>
@@ -132,14 +129,6 @@ const openBarcodeScanner = () => {
     // Si c'est un vrai scan, on pourrait appeler l'API et rediriger ou ouvrir une modale.
     // Pour la démo, on ouvre l'aperçu !
     openBarcode(code.trim().toUpperCase());
-  }
-};
-
-const validatePriceAndSell = (item: any) => {
-  // Dans un cas réel complexe, une modale de confirmation du prix final s'ouvre.
-  // Ici on valide directement le prix de base pour simuler la caisse.
-  if (confirm(`Confirmer la vente de ${item.brand} au prix de ${item.publicPrice} CHF ?`)) {
-     articleStore.changeStatus(item._id, 'sold');
   }
 };
 </script>

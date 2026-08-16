@@ -104,9 +104,6 @@
           <!-- Action: Mettre en vente (si déposé) -->
           <button v-if="item.status === 'deposited'" @click="articleStore.changeStatus(item._id, 'on_sale')" class="text-xs font-medium text-blue-600 hover:text-blue-900">En Vente</button>
           
-          <!-- Action: Vendu (si en vente) -->
-          <button v-if="item.status === 'on_sale'" @click="validatePriceAndSell(item)" class="text-xs font-medium text-green-600 hover:text-green-900">Marquer Vendu</button>
-          
           <!-- Action: Restituer (si en dépôt ou en vente) -->
           <button v-if="['deposited', 'on_sale'].includes(item.status)" @click="articleStore.changeStatus(item._id, 'returned')" class="text-xs font-medium text-orange-600 hover:text-orange-900">Restituer</button>
         </div>
@@ -199,8 +196,11 @@ const columns = [
   { key: 'select', label: '', width: '40px', sortable: false },
   { key: 'barcode', label: 'Réf / Code-barres' },
   { key: 'brand', label: 'Marque' },
-  { key: 'type', label: 'Type & Couleur', format: (_: any, item: any) => `${item.type} ${item.color}` },
-  { key: 'clientId', label: 'Cliente' },
+  { key: 'type', label: 'Type' },
+  { key: 'color', label: 'Couleur' },
+  { key: 'size', label: 'Taille' },
+  { key: 'description', label: 'Description' },
+  { key: 'clientId', label: 'Déposante' },
   { key: 'price', label: 'Prix' },
   { key: 'status', label: 'Statut' },
   { key: 'actions', label: '', align: 'right' as const }
@@ -278,14 +278,6 @@ const submitScanner = () => {
       openBarcode(code); // Fallback string
     }
     isScannerModalOpen.value = false;
-  }
-};
-
-const validatePriceAndSell = (item: any) => {
-  // Dans un cas réel complexe, une modale de confirmation du prix final s'ouvre.
-  // Ici on valide directement le prix de base pour simuler la caisse.
-  if (confirm(`Confirmer la vente de ${item.brand} au prix de ${item.publicPrice} CHF ?`)) {
-     articleStore.changeStatus(item._id, 'sold');
   }
 };
 
