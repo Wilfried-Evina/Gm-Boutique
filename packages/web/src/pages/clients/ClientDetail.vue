@@ -129,6 +129,14 @@ onMounted(load);
             </span>
           </div>
         </div>
+
+        <!-- Affichage de la Signature enregistrée -->
+        <div v-if="client.signatureData" class="mt-6 pt-4 border-t border-border/60 flex flex-col gap-2">
+          <label class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Signature Électronique</label>
+          <div class="bg-gray-50 border border-border rounded-lg p-2 max-w-xs flex justify-center">
+            <img :src="client.signatureData" alt="Signature cliente" class="h-20 object-contain" />
+          </div>
+        </div>
       </div>
 
       <!-- Onglets -->

@@ -3,13 +3,14 @@ import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Plus, Pencil } from 'lucide-vue-next';
 import type { IClient } from '@gm-boutique/shared';
-import { listClients } from '../../api/clients';
+import { listClients, updateClient } from '../../api/clients';
 import { useNotificationsStore } from '../../stores/notifications';
 import { formatDate } from '../../utils/format';
 import SearchBar from '../../components/ui/SearchBar.vue';
 import DataTable, { type Column } from '../../components/ui/DataTable.vue';
 import Pagination from '../../components/ui/Pagination.vue';
 import ClientFormModal from '../../components/clients/ClientFormModal.vue';
+import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
 
 type ClientRow = IClient & { articleCount?: number };
 
@@ -26,6 +27,10 @@ const totalPages = ref(1);
 
 const formOpen = ref(false);
 const editing = ref<IClient | null>(null);
+
+// Signature QR Code
+const signatureModalOpen = ref(false);
+const newlyCreatedClient = ref<IClient | null>(null);
 
 const columns: Column[] = [
   { key: 'referenceNumber', label: 'Réf', sortable: true, width: '130px' },
@@ -71,8 +76,31 @@ function openEdit(client: IClient) {
   formOpen.value = true;
 }
 
-function onSaved() {
+function onSaved(client: IClient) {
   load();
+  // Si c'est une nouvelle cliente (pas un edit), on ouvre la modale de signature avec CGU
+  if (!editing.value) {
+    newlyCreatedClient.value = client;
+    signatureModalOpen.value = true;
+  }
+}
+
+async function handleSignatureReceived(payload: { signatureBase64: string; cguAccepted: boolean }) {
+  if (!newlyCreatedClient.value?._id) return;
+  try {
+    await updateClient(newlyCreatedClient.value._id, {
+      cguAccepted: payload.cguAccepted,
+      cguAcceptedAt: new Date().toISOString(),
+      signatureData: payload.signatureBase64,
+    } as any);
+    notify.success('Signature et CGU enregistrées avec succès.');
+    load();
+  } catch {
+    notify.error("Erreur lors de l'enregistrement de la signature.");
+  } finally {
+    signatureModalOpen.value = false;
+    newlyCreatedClient.value = null;
+  }
 }
 
 function goToClient(client: IClient) {
@@ -141,5 +169,13 @@ onMounted(load);
     </div>
 
     <ClientFormModal v-model:open="formOpen" :client="editing" @saved="onSaved" />
+
+    <!-- Modale QR signature (s'ouvre automatiquement après création d'une nouvelle cliente) -->
+    <QrSignatureModal
+      :is-open="signatureModalOpen"
+      signature-type="first_deposit"
+      @close="signatureModalOpen = false; newlyCreatedClient = null;"
+      @signed="handleSignatureReceived"
+    />
   </div>
 </template>
