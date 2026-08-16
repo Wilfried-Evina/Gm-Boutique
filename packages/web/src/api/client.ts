@@ -1,7 +1,19 @@
 import axios from 'axios';
 
+// Si on accède au site via l'IP réseau (depuis un téléphone par ex.),
+// l'API doit aussi être contactée via cette même IP.
+function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) return envUrl;
+
+  const hostname = window.location.hostname;
+  // Si on est sur localhost, on cible localhost:5000
+  // Si on est sur une IP réseau (ex: 192.168.1.43), on cible cette IP:5000
+  return `http://${hostname}:5000/api`;
+}
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
