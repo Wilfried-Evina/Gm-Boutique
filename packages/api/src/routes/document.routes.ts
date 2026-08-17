@@ -9,6 +9,7 @@ router.use(authenticate);
 
 router.post('/generate/client-profile/:clientId', documentController.generateClientProfile);
 router.post('/generate/sales-report', documentController.generateSalesReport);
+router.get('/client/:clientId', documentController.listByClient);
 router.get('/:id/download', documentController.downloadDocument);
 
 export default router;

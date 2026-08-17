@@ -43,6 +43,17 @@ export const documentController = {
     }
   },
 
+  async listByClient(req: Request, res: Response) {
+    try {
+      const { clientId } = req.params;
+      const documents = await DocumentModel.find({ clientId }).sort({ createdAt: -1 });
+      res.json(documents);
+    } catch (error) {
+      logger.error('Error listing client documents:', error);
+      res.status(500).json({ message: "Erreur lors de la récupération des documents." });
+    }
+  },
+
   async downloadDocument(req: Request, res: Response) {
     try {
       const { id } = req.params;

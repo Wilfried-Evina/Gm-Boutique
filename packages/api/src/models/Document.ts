@@ -5,6 +5,8 @@ export interface IDocument extends MongooseDocument {
   type: 'deposit' | 'retrocession' | 'client_profile' | 'sales_report' | 'other';
   fileUrl: string;
   referenceNumber: string;
+  sentByEmail: boolean;
+  sentAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,8 +32,18 @@ const DocumentSchema = new Schema(
       required: true,
       unique: true,
     },
+    sentByEmail: {
+      type: Boolean,
+      default: false,
+    },
+    sentAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
+
+// Index pour lister rapidement les documents d'une cliente
+DocumentSchema.index({ clientId: 1, createdAt: -1 });
 
 export const DocumentModel = mongoose.model<IDocument>('Document', DocumentSchema);
