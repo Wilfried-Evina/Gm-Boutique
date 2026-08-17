@@ -25,6 +25,7 @@ import {
   documentTypeLabel,
   type IClientDocument,
 } from '../../api/documents';
+import { markArticlePaid, markAllPaid } from '../../api/retrocessions';
 
 const route = useRoute();
 const router = useRouter();
@@ -77,6 +78,43 @@ const articleColumns: Column[] = [
   { key: 'status', label: 'Statut', align: 'center' },
   { key: 'createdAt', label: 'Déposé le', width: '120px', sortable: true },
 ];
+
+const retroColumns: Column[] = [
+  { key: 'article', label: 'Article', sortable: true },
+  { key: 'saleDate', label: 'Vendu le', width: '120px', sortable: true },
+  { key: 'finalSalePrice', label: 'Prix vente', align: 'right', sortable: true },
+  { key: 'finalClientAmount', label: 'Montant cliente', align: 'right', sortable: true },
+  { key: 'retrocessionPaid', label: 'Paiement', align: 'center', width: '150px' },
+  { key: 'actions', label: '', align: 'right', width: '150px' },
+];
+
+const isMarkingPaid = ref(false);
+
+async function handleMarkPaid(articleId: string) {
+  if (isMarkingPaid.value) return;
+  isMarkingPaid.value = true;
+  try {
+    retrocession.value = await markArticlePaid(articleId);
+    notify.success('Article marqué comme remboursé.');
+  } catch {
+    notify.error('Erreur lors du marquage du remboursement.');
+  } finally {
+    isMarkingPaid.value = false;
+  }
+}
+
+async function handleMarkAllPaid() {
+  if (isMarkingPaid.value) return;
+  isMarkingPaid.value = true;
+  try {
+    retrocession.value = await markAllPaid(clientId.value);
+    notify.success('Toutes les rétrocessions ont été marquées comme remboursées.');
+  } catch {
+    notify.error('Erreur lors du marquage des remboursements.');
+  } finally {
+    isMarkingPaid.value = false;
+  }
+}
 
 const documentColumns: Column[] = [
   { key: 'type', label: 'Type', sortable: true },
@@ -395,27 +433,91 @@ onUnmounted(() => {
         </DataTable>
       </div>
       <div v-else-if="activeTab === 'retrocessions'">
-        <div v-if="retrocession" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
-            <p class="text-[13px] text-muted-foreground">Articles vendus (non payés)</p>
-            <p class="text-2xl font-semibold text-foreground mt-1">{{ retrocession.totalArticlesSold }}</p>
+        <template v-if="retrocession && retrocession.totalArticlesSold > 0">
+          <!-- Indicateurs -->
+          <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Chiffre d'affaires</p>
+              <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalSales) }}</p>
+            </div>
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Total rétrocessions</p>
+              <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalRetrocessions) }}</p>
+            </div>
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Gains commerce</p>
+              <p class="text-xl font-semibold text-emerald-700 mt-1">{{ formatCHF(retrocession.storeEarnings) }}</p>
+            </div>
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Déjà remboursé</p>
+              <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalPaid) }}</p>
+            </div>
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Restant à rembourser</p>
+              <p class="text-xl font-semibold mt-1" :class="retrocession.remainingToPay > 0 ? 'text-amber-700' : 'text-emerald-700'">
+                {{ formatCHF(retrocession.remainingToPay) }}
+              </p>
+            </div>
           </div>
-          <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
-            <p class="text-[13px] text-muted-foreground">Montant dû</p>
-            <p class="text-2xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalAmountDue) }}</p>
-          </div>
-          <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
-            <p class="text-[13px] text-muted-foreground">Statut</p>
+
+          <!-- Action globale -->
+          <div class="flex items-center justify-between mb-4">
             <span
-              class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium mt-2"
+              class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium"
               :class="retrocession.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'"
             >
-              {{ retrocession.status === 'paid' ? 'Payé' : 'En attente' }}
+              {{ retrocession.status === 'paid' ? 'Tout remboursé' : 'Remboursement en attente' }}
             </span>
+            <button
+              v-if="retrocession.remainingToPay > 0"
+              class="h-9 px-3 bg-primary text-primary-foreground rounded-md text-[13px] font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              :disabled="isMarkingPaid"
+              @click="handleMarkAllPaid"
+            >
+              Tout marquer remboursé
+            </button>
           </div>
-        </div>
+
+          <!-- Détail par article -->
+          <DataTable :columns="retroColumns" :rows="retrocession.items" row-key="articleId" empty-text="Aucun article vendu.">
+            <template #cell-article="{ row }">
+              <span class="font-medium text-foreground">{{ row.brand }} · {{ row.type }}</span>
+              <span class="block font-mono text-[11px] text-muted-foreground">{{ row.barcode }}</span>
+            </template>
+            <template #cell-saleDate="{ value }">
+              <span class="text-muted-foreground">{{ formatDate(value) }}</span>
+            </template>
+            <template #cell-finalSalePrice="{ value }">{{ formatCHF(value) }}</template>
+            <template #cell-finalClientAmount="{ value }">
+              <span class="font-medium text-foreground">{{ formatCHF(value) }}</span>
+            </template>
+            <template #cell-retrocessionPaid="{ row }">
+              <span
+                v-if="row.retrocessionPaid"
+                class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"
+                :title="row.retrocessionPaidAt ? `Remboursé le ${formatDate(row.retrocessionPaidAt)}` : 'Remboursé'"
+              >
+                Remboursé
+              </span>
+              <span v-else class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">
+                À rembourser
+              </span>
+            </template>
+            <template #cell-actions="{ row }">
+              <button
+                v-if="!row.retrocessionPaid"
+                class="h-8 px-2.5 border border-border rounded-md text-[12px] font-medium hover:bg-black/[0.03] disabled:opacity-50 transition-colors"
+                :disabled="isMarkingPaid"
+                @click="handleMarkPaid(row.articleId)"
+              >
+                Marquer remboursé
+              </button>
+              <span v-else class="text-muted-foreground/50 text-[12px]">—</span>
+            </template>
+          </DataTable>
+        </template>
         <div v-else class="text-muted-foreground text-sm py-10 text-center bg-card rounded-xl border border-border/60">
-          Aucune donnée de rétrocession.
+          Aucun article vendu pour cette cliente.
         </div>
       </div>
       <div v-else-if="activeTab === 'receipts'">

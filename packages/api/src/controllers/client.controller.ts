@@ -153,35 +153,12 @@ export const clientController = {
 
   async getClientRetrocessions(req: Request, res: Response, next: NextFunction) {
     try {
-      const client = await Client.findById(req.params.id);
-      if (!client) {
+      // Délègue au service de calcul centralisé (issue #24)
+      const { computeRetrocession } = await import('./retrocession.controller');
+      const summary = await computeRetrocession(req.params.id);
+      if (!summary) {
         return res.status(404).json({ message: 'Client not found' });
       }
-      
-      const { Article } = await import('../models/Article');
-      
-      const soldArticles = await Article.find({ 
-        clientId: req.params.id, 
-        status: 'sold', 
-        retrocessionPaid: false 
-      });
-      
-      const totalAmountDue = soldArticles.reduce((sum, article) => {
-        return sum + (article.finalClientAmount || article.clientPrice);
-      }, 0);
-      
-      const summary = {
-        clientId: client._id,
-        clientName: `${client.firstName} ${client.lastName}`,
-        totalArticlesSold: soldArticles.length,
-        totalAmountDue,
-        period: {
-          startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-          endDate: new Date()
-        },
-        status: 'pending'
-      };
-      
       res.json(summary);
     } catch (error) {
       next(error);
