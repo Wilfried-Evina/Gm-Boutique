@@ -63,6 +63,37 @@ export async function computeRetrocession(clientId: string): Promise<IRetrocessi
 }
 
 export const retrocessionController = {
+  /** Vue globale : une ligne de synthèse par cliente ayant des ventes. */
+  async listAll(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const clientIds = await Article.find({ status: ArticleStatus.SOLD }).distinct('clientId');
+      const clients = await Client.find({ _id: { $in: clientIds } });
+      const refMap = new Map(clients.map((c) => [c._id.toString(), c.referenceNumber]));
+
+      const rows = [];
+      for (const cid of clientIds) {
+        const s = await computeRetrocession(cid.toString());
+        if (!s) continue;
+        rows.push({
+          clientId: s.clientId,
+          clientName: s.clientName,
+          referenceNumber: refMap.get(s.clientId) ?? '',
+          totalArticlesSold: s.totalArticlesSold,
+          totalRetrocessions: s.totalRetrocessions,
+          totalPaid: s.totalPaid,
+          remainingToPay: s.remainingToPay,
+          status: s.status,
+        });
+      }
+
+      // Les plus gros montants restants d'abord.
+      rows.sort((a, b) => b.remainingToPay - a.remainingToPay);
+      res.json(rows);
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getForClient(req: Request, res: Response, next: NextFunction) {
     try {
       const summary = await computeRetrocession(req.params.clientId);

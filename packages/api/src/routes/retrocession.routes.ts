@@ -7,6 +7,7 @@ const router = Router();
 router.use(authenticate);
 
 // Routes spécifiques d'abord (évite toute ambiguïté de matching)
+router.get('/', retrocessionController.listAll);
 router.post('/client/:clientId/mark-all-paid', retrocessionController.markAllPaid);
 router.get('/client/:clientId', retrocessionController.getForClient);
 router.post('/:articleId/mark-paid', retrocessionController.markPaid);
