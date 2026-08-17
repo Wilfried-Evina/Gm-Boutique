@@ -88,6 +88,7 @@ app.use(hpp());
 
 import signatureRoutes from './routes/signature.routes';
 import retrocessionRoutes from './routes/retrocession.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 import settingsRoutes from './routes/settings.routes';
 import documentRoutes from './routes/document.routes';
 import receiptRoutes from './routes/receipt.routes';
@@ -102,6 +103,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/retrocessions', retrocessionRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Servir les documents uploadés
 import path from 'path';
