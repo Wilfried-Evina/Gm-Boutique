@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download } from 'lucide-vue-next';
+import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download, Eye, FileText } from 'lucide-vue-next';
 import type { IClient, IArticle, IRetrocessionSummary } from '@gm-boutique/shared';
 import {
   getClient,
@@ -19,6 +19,12 @@ import PdfPreviewModal from '../../components/ui/PdfPreviewModal.vue';
 import { createReceipt, getClientReceipts, type IReceipt } from '../../api/receipts';
 import { updateClient, generateClientProfilePDF } from '../../api/clients';
 import { apiClient } from '../../api/client';
+import {
+  getClientDocuments,
+  fetchDocumentBlob,
+  documentTypeLabel,
+  type IClientDocument,
+} from '../../api/documents';
 
 const route = useRoute();
 const router = useRouter();
@@ -28,9 +34,10 @@ const client = ref<IClient | null>(null);
 const articles = ref<IArticle[]>([]);
 const retrocession = ref<IRetrocessionSummary | null>(null);
 const receipts = ref<IReceipt[]>([]);
+const documents = ref<IClientDocument[]>([]);
 const loading = ref(true);
 const isGeneratingPdf = ref(false);
-const activeTab = ref<'articles' | 'retrocessions' | 'receipts'>('articles');
+const activeTab = ref<'articles' | 'retrocessions' | 'receipts' | 'documents'>('articles');
 const formOpen = ref(false);
 
 const selectedArticles = ref<string[]>([]);
@@ -71,19 +78,29 @@ const articleColumns: Column[] = [
   { key: 'createdAt', label: 'Déposé le', width: '120px', sortable: true },
 ];
 
+const documentColumns: Column[] = [
+  { key: 'type', label: 'Type', sortable: true },
+  { key: 'referenceNumber', label: 'Référence', width: '140px' },
+  { key: 'createdAt', label: 'Généré le', width: '130px', sortable: true },
+  { key: 'sentByEmail', label: 'Envoi', align: 'center', width: '140px' },
+  { key: 'actions', label: '', align: 'right', width: '130px' },
+];
+
 async function load() {
   loading.value = true;
   try {
-    const [c, a, r, rcpts] = await Promise.all([
+    const [c, a, r, rcpts, docs] = await Promise.all([
       getClient(clientId.value),
       getClientArticles(clientId.value).catch(() => [] as IArticle[]),
       getClientRetrocessions(clientId.value).catch(() => null),
-      getClientReceipts(clientId.value).catch(() => [] as IReceipt[])
+      getClientReceipts(clientId.value).catch(() => [] as IReceipt[]),
+      getClientDocuments(clientId.value).catch(() => [] as IClientDocument[])
     ]);
     client.value = c;
     articles.value = a;
     retrocession.value = r;
     receipts.value = rcpts;
+    documents.value = docs;
   } catch {
     notify.error('Cliente introuvable.');
     router.push('/clients');
@@ -161,6 +178,8 @@ async function openClientProfilePreview() {
     pdfBlobUrl.value = window.URL.createObjectURL(blob);
     pdfFileName.value = `Fiche_Cliente_${doc.referenceNumber}.pdf`;
     pdfPreviewOpen.value = true;
+    // Rafraîchit la liste de l'onglet Documents pour y voir le nouveau PDF.
+    documents.value = await getClientDocuments(clientId.value).catch(() => documents.value);
   } catch (error) {
     notify.error('Erreur lors de la génération du PDF.');
   } finally {
@@ -173,6 +192,35 @@ function onPreviewClose() {
   if (pdfBlobUrl.value) {
     window.URL.revokeObjectURL(pdfBlobUrl.value);
     pdfBlobUrl.value = '';
+  }
+}
+
+// --- Onglet Documents ---
+async function previewDocument(doc: IClientDocument) {
+  try {
+    const blob = await fetchDocumentBlob(doc._id);
+    if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = window.URL.createObjectURL(blob);
+    pdfFileName.value = `${documentTypeLabel(doc.type)}_${doc.referenceNumber}.pdf`;
+    pdfPreviewOpen.value = true;
+  } catch {
+    notify.error('Erreur lors de l’ouverture du document.');
+  }
+}
+
+async function downloadDocument(doc: IClientDocument) {
+  try {
+    const blob = await fetchDocumentBlob(doc._id);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${documentTypeLabel(doc.type)}_${doc.referenceNumber}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch {
+    notify.error('Erreur lors du téléchargement du document.');
   }
 }
 
@@ -297,6 +345,13 @@ onUnmounted(() => {
         >
           Bons & Reçus
         </button>
+        <button
+          class="px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors"
+          :class="activeTab === 'documents' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
+          @click="activeTab = 'documents'"
+        >
+          Documents <span class="text-muted-foreground/60">({{ documents.length }})</span>
+        </button>
       </div>
 
       <!-- Onglet Articles -->
@@ -389,6 +444,83 @@ onUnmounted(() => {
             Aucun bon généré.
           </div>
         </div>
+      </div>
+
+      <!-- Onglet Documents -->
+      <div v-else-if="activeTab === 'documents'">
+        <div class="flex items-center justify-end mb-4">
+          <button
+            class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors disabled:opacity-60"
+            @click="openClientProfilePreview"
+            :disabled="isGeneratingPdf"
+          >
+            <FileText class="w-4 h-4" :stroke-width="1.75" />
+            {{ isGeneratingPdf ? 'Génération…' : 'Générer la fiche de dépôt' }}
+          </button>
+        </div>
+
+        <DataTable
+          :columns="documentColumns"
+          :rows="documents"
+          row-key="_id"
+          empty-text="Aucun document généré."
+        >
+          <template #cell-type="{ row }">
+            <span class="inline-flex items-center gap-2 font-medium text-foreground">
+              <FileText class="w-4 h-4 text-muted-foreground shrink-0" :stroke-width="1.75" />
+              {{ documentTypeLabel(row.type) }}
+            </span>
+          </template>
+          <template #cell-referenceNumber="{ value }">
+            <span class="font-mono text-[12px] text-foreground">{{ value }}</span>
+          </template>
+          <template #cell-createdAt="{ value }">
+            <span class="text-muted-foreground">{{ formatDate(value) }}</span>
+          </template>
+          <template #cell-sentByEmail="{ row }">
+            <span
+              v-if="row.sentByEmail"
+              class="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"
+              :title="row.sentAt ? `Envoyé le ${formatDate(row.sentAt)}` : 'Envoyé'"
+            >
+              <Mail class="w-3.5 h-3.5" :stroke-width="2" /> Envoyé
+            </span>
+            <span
+              v-else
+              class="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-medium bg-black/5 text-muted-foreground"
+            >
+              <Mail class="w-3.5 h-3.5" :stroke-width="2" /> Non envoyé
+            </span>
+          </template>
+          <template #cell-actions="{ row }">
+            <div class="flex items-center justify-end gap-1">
+              <button
+                class="p-1.5 rounded-md text-muted-foreground/70 hover:bg-black/5 hover:text-foreground transition-colors"
+                title="Aperçu"
+                aria-label="Aperçu"
+                @click="previewDocument(row)"
+              >
+                <Eye class="w-4 h-4" :stroke-width="1.75" />
+              </button>
+              <button
+                class="p-1.5 rounded-md text-muted-foreground/70 hover:bg-black/5 hover:text-foreground transition-colors"
+                title="Télécharger"
+                aria-label="Télécharger"
+                @click="downloadDocument(row)"
+              >
+                <Download class="w-4 h-4" :stroke-width="1.75" />
+              </button>
+              <button
+                class="p-1.5 rounded-md text-muted-foreground/40 cursor-not-allowed"
+                title="Envoi par email — disponible après l'endpoint email (#22)"
+                aria-label="Envoyer par email"
+                disabled
+              >
+                <Mail class="w-4 h-4" :stroke-width="1.75" />
+              </button>
+            </div>
+          </template>
+        </DataTable>
       </div>
 
       <ClientFormModal v-model:open="formOpen" :client="client" @saved="onSaved" />
