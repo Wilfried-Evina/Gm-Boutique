@@ -1,145 +1,222 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import {
-  Package,
-  Banknote,
-  Users,
-  TrendingUp,
-  ArrowUpRight,
-  Clock,
-} from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import VueApexCharts from 'vue3-apexcharts';
+import { TrendingUp, Banknote, Package, Clock, ArrowUpRight, AlertTriangle } from 'lucide-vue-next';
+import type { IArticle } from '@gm-boutique/shared';
 import { useAuthStore } from '../stores/auth';
+import { useNotificationsStore } from '../stores/notifications';
+import { formatCHF, formatDate } from '../utils/format';
+import {
+  getDashboardStats,
+  getDashboardCA,
+  type DashboardStats,
+  type CAResponse,
+  type DashboardPeriod,
+} from '../api/dashboard';
+import { articlesApi } from '../api/articles';
 
+const router = useRouter();
 const authStore = useAuthStore();
-
+const notify = useNotificationsStore();
 
 const prenom = computed(() => authStore.user?.firstName ?? 'Gérante');
 
-function formatCHF(value: number): string {
-  // Séparateur de milliers par un point.
-  return `${value.toLocaleString('de-DE')} CHF`;
+const periods: { key: DashboardPeriod; label: string }[] = [
+  { key: 'week', label: 'Semaine' },
+  { key: 'month', label: 'Mois' },
+  { key: 'quarter', label: 'Trimestre' },
+  { key: 'year', label: 'Année' },
+];
+const period = ref<DashboardPeriod>('month');
+
+const stats = ref<DashboardStats | null>(null);
+const ca = ref<CAResponse | null>(null);
+const recent = ref<IArticle[]>([]);
+const expired = ref<IArticle[]>([]);
+const loadingCA = ref(false);
+
+function clientLabel(a: IArticle): string {
+  const c: any = a.clientId;
+  return c && typeof c === 'object' ? `${c.firstName} ${c.lastName}` : '';
 }
 
-// Données de démonstration (à brancher sur l'API ultérieurement).
-const stats = [
-  { id: 'on-sale', label: 'Articles en vente', value: '128' },
-  { id: 'sales', label: 'Ventes du mois', value: formatCHF(14320) },
-  { id: 'due', label: 'Rétrocessions dues', value: formatCHF(6540) },
-  { id: 'clients', label: 'Clientes actives', value: '47' },
-];
+async function loadCA() {
+  loadingCA.value = true;
+  try {
+    ca.value = await getDashboardCA(period.value);
+  } catch {
+    notify.error('Impossible de charger le chiffre d’affaires.');
+  } finally {
+    loadingCA.value = false;
+  }
+}
 
-const expiring = [
-  { barcode: 'GM-A-1042', brand: 'Zara', type: 'Manteau', client: 'Marie Dubois', deadline: '02.08.2026' },
-  { barcode: 'GM-A-0987', brand: 'Sézane', type: 'Robe', client: 'Claire Roux', deadline: '04.08.2026' },
-  { barcode: 'GM-A-1120', brand: 'COS', type: 'Pull', client: 'Léa Martin', deadline: '05.08.2026' },
-  { barcode: 'GM-A-1135', brand: 'Chanel', type: 'Sac', client: 'Julie Dupont', deadline: '06.08.2026' },
-  { barcode: 'GM-A-1140', brand: 'Dior', type: 'Lunettes', client: 'Sophie Leblanc', deadline: '07.08.2026' },
-  { barcode: 'GM-A-1152', brand: 'Maje', type: 'Jupe', client: 'Alice Morel', deadline: '08.08.2026' },
-  { barcode: 'GM-A-1168', brand: 'Sandro', type: 'Veste', client: 'Caroline Leroy', deadline: '09.08.2026' },
-  { barcode: 'GM-A-1175', brand: 'Ba&sh', type: 'Chemise', client: 'Elodie Blanc', deadline: '10.08.2026' },
-  { barcode: 'GM-A-1182', brand: 'Hermès', type: 'Foulard', client: 'Martine Roux', deadline: '11.08.2026' },
-  { barcode: 'GM-A-1190', brand: 'Gucci', type: 'Ceinture', client: 'Lucie Bernard', deadline: '12.08.2026' },
-];
+async function loadAll() {
+  try {
+    const [s, recentRes, exp] = await Promise.all([
+      getDashboardStats().catch(() => null),
+      articlesApi.getAll({ limit: 6 }).catch(() => ({ data: [] as IArticle[] } as any)),
+      articlesApi.getExpired().catch(() => [] as IArticle[]),
+    ]);
+    stats.value = s;
+    recent.value = recentRes.data ?? [];
+    expired.value = exp;
+  } catch {
+    notify.error('Erreur lors du chargement du tableau de bord.');
+  }
+  await loadCA();
+}
 
-const recentSales = [
-  { barcode: 'GM-A-0912', brand: 'Maje', price: 89, client: 'Sophie Blanc', date: '28.07.2026' },
-  { barcode: 'GM-A-0876', brand: 'Sandro', price: 120, client: 'Anne Favre', date: '27.07.2026' },
-  { barcode: 'GM-A-0844', brand: 'Ba&sh', price: 65, client: 'Nadia Perret', date: '27.07.2026' },
-  { barcode: 'GM-A-0810', brand: 'Chanel', price: 1500, client: 'Juliette Moreau', date: '26.07.2026' },
-  { barcode: 'GM-A-0785', brand: 'Dior', price: 350, client: 'Camille Leroy', date: '26.07.2026' },
-  { barcode: 'GM-A-0762', brand: 'Saint Laurent', price: 890, client: 'Manon Bernard', date: '25.07.2026' },
-  { barcode: 'GM-A-0740', brand: 'Zadig & Voltaire', price: 110, client: 'Chloe Simon', date: '25.07.2026' },
-  { barcode: 'GM-A-0715', brand: 'Celine', price: 420, client: 'Sarah Michel', date: '24.07.2026' },
-  { barcode: 'GM-A-0690', brand: 'Prada', price: 560, client: 'Emma Robert', date: '24.07.2026' },
-  { barcode: 'GM-A-0655', brand: 'Balenciaga', price: 380, client: 'Lea Dubois', date: '23.07.2026' },
-];
+watch(period, loadCA);
+onMounted(loadAll);
+
+const chartSeries = computed(() => {
+  const s = ca.value?.series ?? [];
+  return [
+    { name: 'CA', data: s.map((p) => p.ca) },
+    { name: 'Gains', data: s.map((p) => p.gains) },
+    { name: 'Rétrocessions', data: s.map((p) => p.retro) },
+  ];
+});
+
+const chartOptions = computed(() => ({
+  chart: { type: 'area', toolbar: { show: false }, fontFamily: 'inherit', animations: { easing: 'easeinout', speed: 400 } },
+  colors: ['#0a0a0a', '#059669', '#d97706'],
+  dataLabels: { enabled: false },
+  stroke: { curve: 'smooth', width: 2 },
+  fill: { type: 'gradient', gradient: { opacityFrom: 0.15, opacityTo: 0.02 } },
+  grid: { borderColor: '#e4e4e7', strokeDashArray: 4 },
+  legend: { position: 'top', horizontalAlign: 'right', markers: { radius: 12 } },
+  xaxis: {
+    categories: ca.value?.series.map((p) => p.label) ?? [],
+    labels: { style: { colors: '#71717a', fontSize: '11px' } },
+    axisBorder: { show: false },
+    axisTicks: { show: false },
+  },
+  yaxis: { labels: { style: { colors: '#71717a', fontSize: '11px' }, formatter: (v: number) => `${Math.round(v)}` } },
+  tooltip: { y: { formatter: (v: number) => formatCHF(v) } },
+}));
 </script>
 
 <template>
-  <div class="w-full h-full pb-12">
-    <!-- En-tête -->
-    <div class="mb-12 flex flex-col items-center justify-center text-center">
-      <h1 class="text-[36px] font-extrabold tracking-tight text-gray-900 leading-tight">
-        Tableau de bord
-      </h1>
-      <p class="text-[16px] text-gray-500 mt-2 font-medium tracking-wide">
-        Voici un aperçu de l'activité de votre boutique.
-      </p>
-    </div>
-
-    <!-- Cartes d'indicateurs -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-      <div
-        v-for="s in stats"
-        :key="s.id"
-        class="flex flex-col items-center justify-center text-center p-6 bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.02)]"
-      >
-        <p class="text-[14px] font-medium text-gray-500">{{ s.label }}</p>
-        <p class="text-[36px] font-semibold tracking-tight text-gray-900 mt-3 leading-none">{{ s.value }}</p>
+  <div class="max-w-6xl mx-auto">
+    <!-- En-tête + filtre période -->
+    <div class="flex items-end justify-between gap-4 flex-wrap mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight text-foreground">Bonjour {{ prenom }} 👋</h1>
+        <p class="text-sm text-muted-foreground mt-1">Aperçu de l'activité de la boutique.</p>
+      </div>
+      <div class="inline-flex items-center bg-black/5 rounded-lg p-0.5">
+        <button
+          v-for="p in periods"
+          :key="p.key"
+          class="h-8 px-3 rounded-md text-[13px] font-medium transition-colors"
+          :class="period === p.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+          @click="period = p.key"
+        >
+          {{ p.label }}
+        </button>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <!-- Ventes récentes -->
-      <section>
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-[16px] font-semibold text-gray-900">Ventes récentes</h2>
-          <button class="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors">Tout voir</button>
-        </div>
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
-          <div class="flex flex-col divide-y divide-gray-50">
-            <div v-for="v in recentSales.slice(0, 8)" :key="v.barcode" class="flex items-center justify-between p-4 hover:bg-gray-50/50 transition-colors group cursor-pointer">
-              <div class="flex items-center gap-4 min-w-0">
-                <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                  <Banknote class="w-4 h-4 text-gray-400 group-hover:text-gray-600 transition-colors" :stroke-width="1.5" />
-                </div>
-                <div class="min-w-0">
-                  <p class="text-[14px] font-medium text-gray-900 truncate">
-                    {{ v.brand }}
-                  </p>
-                  <p class="text-[13px] text-gray-500 truncate flex items-center gap-1.5 mt-0.5">
-                    {{ v.client }} <span class="w-1 h-1 rounded-full bg-gray-300"></span> {{ v.barcode }}
-                  </p>
-                </div>
-              </div>
-              <div class="text-right shrink-0 ml-4">
-                <p class="text-[14px] font-semibold text-gray-900">CHF {{ v.price }}</p>
-                <p class="text-[12px] text-gray-400 mt-0.5">{{ v.date }}</p>
-              </div>
-            </div>
+    <!-- Cartes KPI -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3">
+          <div class="w-9 h-9 rounded-lg bg-black/5 flex items-center justify-center">
+            <TrendingUp class="w-[18px] h-[18px] text-foreground/70" :stroke-width="1.75" />
           </div>
         </div>
+        <p class="text-2xl font-semibold tracking-tight text-foreground">{{ formatCHF(ca?.totals.totalCA ?? 0) }}</p>
+        <p class="text-[13px] text-muted-foreground mt-0.5">Chiffre d'affaires</p>
+      </div>
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
+        <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center mb-3">
+          <ArrowUpRight class="w-[18px] h-[18px] text-emerald-700" :stroke-width="1.75" />
+        </div>
+        <p class="text-2xl font-semibold tracking-tight text-emerald-700">{{ formatCHF(ca?.totals.storeEarnings ?? 0) }}</p>
+        <p class="text-[13px] text-muted-foreground mt-0.5">Gains commerce</p>
+      </div>
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
+        <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center mb-3">
+          <Banknote class="w-[18px] h-[18px] text-amber-700" :stroke-width="1.75" />
+        </div>
+        <p class="text-2xl font-semibold tracking-tight text-foreground">{{ formatCHF(stats?.pendingRetroAmount ?? 0) }}</p>
+        <p class="text-[13px] text-muted-foreground mt-0.5">Rétrocessions en attente ({{ stats?.pendingRetroCount ?? 0 }})</p>
+      </div>
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 cursor-pointer hover:border-foreground/20 transition-colors" @click="router.push('/articles/en-vente')">
+        <div class="w-9 h-9 rounded-lg bg-black/5 flex items-center justify-center mb-3">
+          <Package class="w-[18px] h-[18px] text-foreground/70" :stroke-width="1.75" />
+        </div>
+        <p class="text-2xl font-semibold tracking-tight text-foreground">{{ stats?.articles.onSale ?? 0 }}</p>
+        <p class="text-[13px] text-muted-foreground mt-0.5">Articles en vente · taux {{ stats?.sellRate ?? 0 }}%</p>
+      </div>
+    </div>
+
+    <!-- Graphique -->
+    <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 mb-6">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-semibold text-foreground">CA · Gains · Rétrocessions</h2>
+        <span v-if="loadingCA" class="text-[12px] text-muted-foreground">Chargement…</span>
+      </div>
+      <VueApexCharts type="area" height="300" :options="chartOptions" :series="chartSeries" />
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Derniers articles déposés -->
+      <section class="bg-card rounded-xl border border-border/60 shadow-sm p-6">
+        <h2 class="text-sm font-semibold text-foreground mb-4">Derniers articles déposés</h2>
+        <div v-if="recent.length" class="flex flex-col divide-y divide-border/50">
+          <div
+            v-for="a in recent"
+            :key="a._id"
+            class="flex items-center justify-between py-3 cursor-pointer hover:bg-black/[0.02] -mx-2 px-2 rounded-md transition-colors"
+            @click="router.push('/articles')"
+          >
+            <div class="min-w-0">
+              <p class="text-[13px] font-medium text-foreground truncate">{{ a.brand }} · {{ a.type }}</p>
+              <p class="text-[12px] text-muted-foreground truncate">{{ clientLabel(a) }} — {{ a.barcode }}</p>
+            </div>
+            <span class="text-[12px] text-muted-foreground shrink-0 ml-3">{{ formatDate(a.createdAt) }}</span>
+          </div>
+        </div>
+        <p v-else class="text-[13px] text-muted-foreground py-6 text-center">Aucun article déposé.</p>
       </section>
 
-      <!-- Articles à échéance proche -->
-      <section>
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-[16px] font-semibold text-gray-900">Échéances proches</h2>
-          <button class="text-[13px] font-medium text-gray-500 hover:text-gray-900 transition-colors">Gérer</button>
+      <!-- Alertes -->
+      <section class="bg-card rounded-xl border border-border/60 shadow-sm p-6">
+        <h2 class="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <AlertTriangle class="w-4 h-4 text-amber-600" :stroke-width="1.75" /> Alertes
+        </h2>
+
+        <div class="flex items-center justify-between py-2.5 border-b border-border/50">
+          <span class="text-[13px] text-foreground">Rétrocessions en attente</span>
+          <span class="text-[12px] font-medium px-2 py-0.5 rounded-full" :class="(stats?.pendingRetroCount ?? 0) > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'">
+            {{ stats?.pendingRetroCount ?? 0 }}
+          </span>
         </div>
-        <div class="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.02)] overflow-hidden">
-          <div class="flex flex-col divide-y divide-gray-50">
-            <div v-for="a in expiring.slice(0, 8)" :key="a.barcode" class="flex items-center justify-between p-4 hover:bg-gray-50/50 transition-colors group cursor-pointer">
-              <div class="flex items-center gap-4 min-w-0">
-                <div class="w-10 h-10 rounded-full bg-orange-50 flex items-center justify-center shrink-0">
-                  <Clock class="w-4 h-4 text-orange-500" :stroke-width="1.5" />
-                </div>
-                <div class="min-w-0">
-                  <p class="text-[14px] font-medium text-gray-900 truncate">
-                    {{ a.brand }} · {{ a.type }}
-                  </p>
-                  <p class="text-[13px] text-gray-500 truncate flex items-center gap-1.5 mt-0.5">
-                    {{ a.client }} <span class="w-1 h-1 rounded-full bg-gray-300"></span> {{ a.barcode }}
-                  </p>
-                </div>
-              </div>
-              <div class="text-right shrink-0 ml-4">
-                <span class="inline-flex items-center px-2 py-1 rounded-md bg-orange-50 border border-orange-100/50 text-[11px] font-semibold text-orange-700">
-                  {{ a.deadline }}
-                </span>
-              </div>
+
+        <div class="mt-3">
+          <div class="flex items-center gap-2 mb-2 text-[13px] text-foreground">
+            <Clock class="w-4 h-4 text-amber-600" :stroke-width="1.75" />
+            Articles à date butoir passée
+            <span class="text-[12px] font-medium px-2 py-0.5 rounded-full ml-auto" :class="expired.length ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'">
+              {{ expired.length }}
+            </span>
+          </div>
+          <div v-if="expired.length" class="flex flex-col divide-y divide-border/50">
+            <div
+              v-for="a in expired.slice(0, 5)"
+              :key="a._id"
+              class="flex items-center justify-between py-2 cursor-pointer hover:bg-black/[0.02] -mx-2 px-2 rounded-md transition-colors"
+              @click="router.push('/articles/expires')"
+            >
+              <span class="text-[12px] text-foreground truncate">{{ a.brand }} · {{ a.type }}</span>
+              <span class="text-[11px] text-muted-foreground shrink-0 ml-3">{{ a.barcode }}</span>
             </div>
           </div>
+          <p v-else class="text-[12px] text-muted-foreground py-2">Aucun article en dépassement.</p>
         </div>
       </section>
     </div>
