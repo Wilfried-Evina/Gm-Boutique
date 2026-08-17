@@ -87,6 +87,7 @@ app.use(mongoSanitize());
 app.use(hpp());
 
 import signatureRoutes from './routes/signature.routes';
+import retrocessionRoutes from './routes/retrocession.routes';
 import settingsRoutes from './routes/settings.routes';
 import documentRoutes from './routes/document.routes';
 import receiptRoutes from './routes/receipt.routes';
@@ -100,6 +101,7 @@ app.use('/api/signatures', signatureRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/retrocessions', retrocessionRoutes);
 
 // Servir les documents uploadés
 import path from 'path';
