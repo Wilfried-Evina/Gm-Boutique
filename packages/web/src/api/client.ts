@@ -1,15 +1,13 @@
 import axios from 'axios';
 
 // Si on accède au site via l'IP réseau (depuis un téléphone par ex.),
-// l'API doit aussi être contactée via cette même IP.
+// l'API doit passer par le proxy Vite (port 5173) pour éviter le blocage du port 5000 par macOS.
 function getApiBaseUrl(): string {
   const envUrl = import.meta.env.VITE_API_URL;
   if (envUrl) return envUrl;
 
-  const hostname = window.location.hostname;
-  // Si on est sur localhost, on cible localhost:5000
-  // Si on est sur une IP réseau (ex: 192.168.1.43), on cible cette IP:5000
-  return `http://${hostname}:5000/api`;
+  // Utilise l'origine actuelle (ex: http://192.168.1.43:5173) pour que le proxy Vite prenne le relais
+  return `${window.location.origin}/api`;
 }
 
 export const apiClient = axios.create({

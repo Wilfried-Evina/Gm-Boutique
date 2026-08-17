@@ -18,11 +18,16 @@ const props = withDefaults(
     rowKey?: string;
     emptyText?: string;
     clickableRows?: boolean;
+    selectable?: boolean;
+    selected?: string[];
   }>(),
-  { loading: false, rowKey: '_id', emptyText: 'Aucun résultat.', clickableRows: false }
+  { loading: false, rowKey: '_id', emptyText: 'Aucun résultat.', clickableRows: false, selectable: false, selected: () => [] }
 );
 
-const emit = defineEmits<{ (e: 'row-click', row: T): void }>();
+const emit = defineEmits<{ 
+  (e: 'row-click', row: T): void;
+  (e: 'update:selected', value: string[]): void;
+}>();
 
 const sortKey = ref<string | null>(null);
 const sortDir = ref<'asc' | 'desc'>('asc');
@@ -54,6 +59,33 @@ const sortedRows = computed(() => {
 
 const alignClass = (a?: string) =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left';
+
+const allSelected = computed(() => {
+  return props.rows.length > 0 && props.selected.length === props.rows.length;
+});
+
+const someSelected = computed(() => {
+  return props.selected.length > 0 && props.selected.length < props.rows.length;
+});
+
+function toggleAll(e: Event) {
+  const checked = (e.target as HTMLInputElement).checked;
+  if (checked) {
+    emit('update:selected', props.rows.map(r => r[props.rowKey]));
+  } else {
+    emit('update:selected', []);
+  }
+}
+
+function toggleRow(row: T) {
+  const id = row[props.rowKey];
+  const isSelected = props.selected.includes(id);
+  if (isSelected) {
+    emit('update:selected', props.selected.filter(x => x !== id));
+  } else {
+    emit('update:selected', [...props.selected, id]);
+  }
+}
 </script>
 
 <template>
@@ -61,6 +93,15 @@ const alignClass = (a?: string) =>
     <table class="w-full text-[13px] border-collapse">
       <thead>
         <tr class="border-b border-border/60">
+          <th v-if="selectable" class="w-10 px-4 py-3 text-left">
+            <input 
+              type="checkbox" 
+              class="w-4 h-4 rounded border-gray-300 text-black focus:ring-black"
+              :checked="allSelected"
+              :indeterminate="someSelected"
+              @change="toggleAll"
+            />
+          </th>
           <th
             v-for="col in columns"
             :key="col.key"
@@ -85,13 +126,13 @@ const alignClass = (a?: string) =>
       <tbody>
         <!-- Chargement -->
         <tr v-if="loading">
-          <td :colspan="columns.length" class="px-4 py-12 text-center text-muted-foreground">
+          <td :colspan="columns.length + (selectable ? 1 : 0)" class="px-4 py-12 text-center text-muted-foreground">
             Chargement…
           </td>
         </tr>
         <!-- Vide -->
         <tr v-else-if="!sortedRows.length">
-          <td :colspan="columns.length" class="px-4 py-12 text-center text-muted-foreground">
+          <td :colspan="columns.length + (selectable ? 1 : 0)" class="px-4 py-12 text-center text-muted-foreground">
             {{ emptyText }}
           </td>
         </tr>
@@ -104,6 +145,14 @@ const alignClass = (a?: string) =>
           :class="clickableRows ? 'cursor-pointer hover:bg-black/[0.03]' : ''"
           @click="clickableRows && emit('row-click', row)"
         >
+          <td v-if="selectable" class="px-4 py-3" @click.stop>
+            <input 
+              type="checkbox" 
+              class="w-4 h-4 rounded border-gray-300 text-black focus:ring-black cursor-pointer"
+              :checked="selected.includes(row[rowKey])"
+              @change="toggleRow(row)"
+            />
+          </td>
           <td v-for="col in columns" :key="col.key" class="px-4 py-3 text-foreground/90" :class="alignClass(col.align)">
             <slot :name="`cell-${col.key}`" :row="row" :value="row[col.key]">
               {{ row[col.key] ?? '—' }}

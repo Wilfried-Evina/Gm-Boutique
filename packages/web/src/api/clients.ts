@@ -45,3 +45,8 @@ export async function getClientRetrocessions(id: string): Promise<IRetrocessionS
   const { data } = await apiClient.get(`/clients/${id}/retrocessions`);
   return data;
 }
+
+export async function generateClientProfilePDF(clientId: string): Promise<{ _id: string, fileUrl: string, referenceNumber: string }> {
+  const { data } = await apiClient.post(`/documents/generate/client-profile/${clientId}`, {});
+  return data;
+}
