@@ -13,6 +13,7 @@ const ReturnedList = () => import('../pages/articles/ReturnedList.vue');
 const ExpiredList = () => import('../pages/articles/ExpiredList.vue');
 const Pos = () => import('../pages/Pos.vue');
 const FacturesList = () => import('../pages/FacturesList.vue');
+const Retrocessions = () => import('../pages/Retrocessions.vue');
 
 const router = createRouter({
   history: createWebHistory(),
@@ -32,9 +33,8 @@ const router = createRouter({
         { path: 'articles/vendus', name: 'SoldList', component: SoldList, meta: { title: 'Vendus' } },
         { path: 'articles/retournes', name: 'ReturnedList', component: ReturnedList, meta: { title: 'Retournés' } },
         { path: 'articles/expires', name: 'ExpiredList', component: ExpiredList, meta: { title: 'Expirés' } },
-        { path: 'retrocessions', name: 'Retrocessions', component: Placeholder, meta: { title: 'Rétrocessions' } },
+        { path: 'retrocessions', name: 'Retrocessions', component: Retrocessions, meta: { title: 'Rétrocessions' } },
         { path: 'factures', name: 'Factures', component: FacturesList, meta: { title: 'Factures' } },
-        { path: 'settings', name: 'Parametres', component: Placeholder, meta: { title: 'Paramètres' } },
       ],
     },
     {

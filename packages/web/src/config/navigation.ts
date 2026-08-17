@@ -11,7 +11,6 @@ import {
   FileText,
   Bell,
   Search,
-  Settings,
   LogOut,
   CreditCard,
 } from 'lucide-vue-next';
@@ -59,7 +58,6 @@ export const navGroups: NavGroupData[] = [
 ];
 
 export const bottomItems: NavItemData[] = [
-  { id: 'settings', title: 'Paramètres', icon: Settings, to: '/settings', shortcut: '⌘,' },
   { id: 'logout', title: 'Déconnexion', icon: LogOut, action: 'logout' },
 ];
 
