@@ -13,5 +13,12 @@ export const salesApi = {
   getAll: async () => {
     const response = await apiClient.get<ISale[]>('/sales');
     return response.data;
+  },
+  generateSalesReport: async (startDate: Date, endDate: Date) => {
+    const response = await apiClient.post('/documents/generate/sales-report', {
+      startDate,
+      endDate
+    });
+    return response.data;
   }
 };

@@ -111,7 +111,7 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto">
+  <div class="w-full">
     <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
       <div>
         <h1 class="text-2xl font-semibold tracking-tight text-foreground">Clientes</h1>

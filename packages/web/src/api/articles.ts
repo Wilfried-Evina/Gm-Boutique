@@ -33,6 +33,12 @@ export const articlesApi = {
     return data;
   },
 
+  // Suggestions pour les formulaires
+  getSuggestions: async (field: 'brand' | 'type' | 'color', q: string) => {
+    const { data } = await apiClient.get<string[]>('/articles/suggestions', { params: { field, q } });
+    return data;
+  },
+
   // Récupérer un article
   getById: async (id: string) => {
     const { data } = await apiClient.get<IArticle>(`/articles/${id}`);

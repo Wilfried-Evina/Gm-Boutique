@@ -25,6 +25,8 @@ const createArticleSchema = z.object({
   clientPrice: z.number().min(0),
   publicPrice: z.number().min(0),
   priceReduction: priceReductionSchema.optional(),
+  cguAccepted: z.boolean().optional(),
+  signatureData: z.string().optional(),
 });
 
 export const articleController = {
@@ -36,6 +38,21 @@ export const articleController = {
       const client = await Client.findById(data.clientId);
       if (!client) {
         return res.status(404).json({ message: 'Client not found' });
+      }
+
+      // Check CGU
+      if (!client.cguAccepted) {
+        if (!data.cguAccepted) {
+          return res.status(400).json({ message: 'Les Conditions Générales de GM Boutique doivent être acceptées pour déposer un article.' });
+        } else {
+          // Update client with CGU acceptance
+          client.cguAccepted = true;
+          client.cguAcceptedAt = new Date();
+          if (data.signatureData) {
+            client.signatureData = data.signatureData;
+          }
+          await client.save();
+        }
       }
 
       // Generate a unique barcode (temporary simple generation, will be refined in Issue #17)
@@ -203,6 +220,41 @@ export const articleController = {
           res.send(png);
         }
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getSuggestions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const field = req.query.field as string;
+      const q = req.query.q as string;
+
+      if (!['brand', 'type', 'color'].includes(field)) {
+        return res.status(400).json({ message: 'Invalid field for suggestions' });
+      }
+
+      if (!q || q.length < 2) {
+        return res.json([]);
+      }
+
+      const suggestions = await Article.aggregate([
+        {
+          $match: {
+            [field]: { $regex: new RegExp(`^${q}`, 'i') }
+          }
+        },
+        {
+          $group: {
+            _id: { $toLower: `$${field}` },
+            value: { $first: `$${field}` }
+          }
+        },
+        { $limit: 10 },
+        { $project: { _id: 0, value: 1 } }
+      ]);
+
+      res.json(suggestions.map(s => s.value).filter(Boolean));
     } catch (error) {
       next(error);
     }
