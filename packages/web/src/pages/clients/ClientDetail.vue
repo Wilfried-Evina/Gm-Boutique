@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download } from 'lucide-vue-next';
 import type { IClient, IArticle, IRetrocessionSummary } from '@gm-boutique/shared';
@@ -15,6 +15,7 @@ import StatusBadge from '../../components/ui/StatusBadge.vue';
 import ClientFormModal from '../../components/clients/ClientFormModal.vue';
 import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
 import ReceiptModal from '../../components/clients/ReceiptModal.vue';
+import PdfPreviewModal from '../../components/ui/PdfPreviewModal.vue';
 import { createReceipt, getClientReceipts, type IReceipt } from '../../api/receipts';
 import { updateClient, generateClientProfilePDF } from '../../api/clients';
 import { apiClient } from '../../api/client';
@@ -39,6 +40,11 @@ const pendingReceiptType = ref<'deposit' | 'restitution' | null>(null);
 
 const selectedReceipt = ref<IReceipt | null>(null);
 const receiptModalOpen = ref(false);
+
+// Aperçu PDF (fiche cliente)
+const pdfPreviewOpen = ref(false);
+const pdfBlobUrl = ref('');
+const pdfFileName = ref('');
 
 const clientId = computed(() => route.params.id as string);
 const fullName = computed(() =>
@@ -137,31 +143,24 @@ async function handleSignatureReceived(payload: { signatureBase64: string; cguAc
   signatureModalOpen.value = false;
 }
 
-async function downloadClientProfile() {
+async function openClientProfilePreview() {
   if (isGeneratingPdf.value) return;
   isGeneratingPdf.value = true;
   try {
     const doc = await generateClientProfilePDF(clientId.value);
-    
-    // Declencher le telechargement (utilisation de l'URL absolue via apiClient)
+
+    // Récupère le PDF en blob (auth via token) pour l'aperçu iframe.
     const token = localStorage.getItem('access_token');
     const response = await fetch(`${apiClient.defaults.baseURL}/documents/${doc._id}/download`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` },
     });
-    
     if (!response.ok) throw new Error("Erreur de téléchargement");
-    
+
     const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Fiche_Cliente_${doc.referenceNumber}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    
-    notify.success('Fiche PDF générée et téléchargée avec succès.');
+    if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = window.URL.createObjectURL(blob);
+    pdfFileName.value = `Fiche_Cliente_${doc.referenceNumber}.pdf`;
+    pdfPreviewOpen.value = true;
   } catch (error) {
     notify.error('Erreur lors de la génération du PDF.');
   } finally {
@@ -169,8 +168,19 @@ async function downloadClientProfile() {
   }
 }
 
+function onPreviewClose() {
+  pdfPreviewOpen.value = false;
+  if (pdfBlobUrl.value) {
+    window.URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = '';
+  }
+}
+
 watch(clientId, load);
 onMounted(load);
+onUnmounted(() => {
+  if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
+});
 </script>
 
 <template>
@@ -202,7 +212,7 @@ onMounted(load);
         <div class="flex gap-2">
           <button
             class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
-            @click="downloadClientProfile"
+            @click="openClientProfilePreview"
             :disabled="isGeneratingPdf"
           >
             <Download v-if="!isGeneratingPdf" class="w-4 h-4" :stroke-width="1.75" />
@@ -390,10 +400,18 @@ onMounted(load);
         @signed="handleSignatureReceived"
       />
 
-      <ReceiptModal 
-        v-model:open="receiptModalOpen" 
-        :receipt="selectedReceipt" 
-        :client="client" 
+      <ReceiptModal
+        v-model:open="receiptModalOpen"
+        :receipt="selectedReceipt"
+        :client="client"
+      />
+
+      <PdfPreviewModal
+        :open="pdfPreviewOpen"
+        :blob-url="pdfBlobUrl"
+        :file-name="pdfFileName"
+        title="Fiche cliente"
+        @update:open="(v: boolean) => { if (!v) onPreviewClose(); }"
       />
     </template>
   </div>
