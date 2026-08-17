@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download, Eye, FileText } from 'lucide-vue-next';
+import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download, Eye, FileText, Printer } from 'lucide-vue-next';
 import type { IClient, IArticle, IRetrocessionSummary } from '@gm-boutique/shared';
 import {
   getClient,
@@ -105,6 +105,10 @@ async function handleMarkPaid(articleId: string) {
 
 async function handleMarkAllPaid() {
   if (isMarkingPaid.value) return;
+  const restant = retrocession.value?.remainingToPay ?? 0;
+  if (!window.confirm(`Confirmer le remboursement intégral de ${formatCHF(restant)} à cette cliente ? Cette action marquera tous les articles vendus comme remboursés.`)) {
+    return;
+  }
   isMarkingPaid.value = true;
   try {
     retrocession.value = await markAllPaid(clientId.value);
@@ -114,6 +118,96 @@ async function handleMarkAllPaid() {
   } finally {
     isMarkingPaid.value = false;
   }
+}
+
+// Filtre par période (date de vente)
+const retroFrom = ref('');
+const retroTo = ref('');
+
+// Lignes enrichies (description depuis l'article) + filtrées par période.
+const retroItemsView = computed(() => {
+  const items = retrocession.value?.items ?? [];
+  const from = retroFrom.value ? new Date(retroFrom.value) : null;
+  const to = retroTo.value ? new Date(retroTo.value + 'T23:59:59') : null;
+  return items
+    .map((it) => ({
+      ...it,
+      description: articles.value.find((a) => a._id === it.articleId)?.description ?? '',
+    }))
+    .filter((it) => {
+      if (!it.saleDate) return true;
+      const d = new Date(it.saleDate);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      return true;
+    });
+});
+
+function resetRetroFilter() {
+  retroFrom.value = '';
+  retroTo.value = '';
+}
+
+// Articles restitués à la cliente (non vendus)
+const returnedArticles = computed(() => articles.value.filter((a) => a.status === 'returned'));
+
+// Impression du relevé de rétrocession (document autonome).
+function printRetroStatement() {
+  if (!client.value || !retrocession.value) return;
+  const c = client.value;
+  const r = retrocession.value;
+  const rows = retroItemsView.value
+    .map(
+      (it) => `<tr>
+        <td>${it.brand} · ${it.type}${it.description ? ' — ' + it.description : ''}</td>
+        <td>${formatDate(it.saleDate)}</td>
+        <td class="r">${formatCHF(it.finalSalePrice)}</td>
+        <td class="r">${formatCHF(it.finalClientAmount)}</td>
+        <td>${it.retrocessionPaid ? 'Remboursé' : 'En attente'}</td>
+      </tr>`
+    )
+    .join('');
+
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8" />
+    <title>Relevé de rétrocession — ${c.firstName} ${c.lastName}</title>
+    <style>
+      body { font-family: system-ui, sans-serif; color: #111; padding: 32px; }
+      h1 { font-size: 20px; margin: 0; }
+      .muted { color: #666; }
+      .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:12px; margin-bottom:20px; }
+      .sum { display:flex; gap:24px; margin: 16px 0 24px; }
+      .sum div { border:1px solid #ddd; border-radius:8px; padding:12px 16px; }
+      .sum .big { font-size:22px; font-weight:700; }
+      table { width:100%; border-collapse:collapse; font-size:13px; }
+      th, td { text-align:left; padding:8px 10px; border-bottom:1px solid #eee; }
+      th { color:#666; font-weight:600; }
+      .r { text-align:right; }
+      @media print { body { padding:0; } }
+    </style></head><body>
+    <div class="head">
+      <div><h1>Relevé de rétrocession</h1><p class="muted">GM Boutique · ${formatDate(new Date())}</p></div>
+      <div style="text-align:right"><strong>${c.firstName} ${c.lastName}</strong><br /><span class="muted">${c.referenceNumber}</span></div>
+    </div>
+    <div class="sum">
+      <div><div class="muted">Total à reverser</div><div class="big">${formatCHF(r.totalRetrocessions)}</div></div>
+      <div><div class="muted">Déjà remboursé</div><div class="big">${formatCHF(r.totalPaid)}</div></div>
+      <div><div class="muted">Restant à rembourser</div><div class="big">${formatCHF(r.remainingToPay)}</div></div>
+    </div>
+    <table>
+      <thead><tr><th>Article</th><th>Date de vente</th><th class="r">Prix vente</th><th class="r">Montant cliente</th><th>Statut</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" class="muted">Aucun article vendu.</td></tr>'}</tbody>
+    </table>
+    </body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) {
+    notify.error('Autorise les fenêtres pop-up pour imprimer le relevé.');
+    return;
+  }
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 300);
 }
 
 const documentColumns: Column[] = [
@@ -434,55 +528,77 @@ onUnmounted(() => {
       </div>
       <div v-else-if="activeTab === 'retrocessions'">
         <template v-if="retrocession && retrocession.totalArticlesSold > 0">
-          <!-- Indicateurs -->
-          <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
-            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-              <p class="text-[12px] text-muted-foreground">Chiffre d'affaires</p>
-              <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalSales) }}</p>
+          <!-- Résumé financier : Total à reverser mis en évidence -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+            <div class="lg:col-span-1 bg-primary text-primary-foreground rounded-2xl shadow-sm p-6 flex flex-col justify-center">
+              <p class="text-[13px] opacity-80">Total à reverser</p>
+              <p class="text-4xl font-bold tracking-tight mt-1">{{ formatCHF(retrocession.totalRetrocessions) }}</p>
             </div>
-            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-              <p class="text-[12px] text-muted-foreground">Total rétrocessions</p>
-              <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalRetrocessions) }}</p>
-            </div>
-            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-              <p class="text-[12px] text-muted-foreground">Gains commerce</p>
-              <p class="text-xl font-semibold text-emerald-700 mt-1">{{ formatCHF(retrocession.storeEarnings) }}</p>
-            </div>
-            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-              <p class="text-[12px] text-muted-foreground">Déjà remboursé</p>
-              <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalPaid) }}</p>
-            </div>
-            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-              <p class="text-[12px] text-muted-foreground">Restant à rembourser</p>
-              <p class="text-xl font-semibold mt-1" :class="retrocession.remainingToPay > 0 ? 'text-amber-700' : 'text-emerald-700'">
-                {{ formatCHF(retrocession.remainingToPay) }}
-              </p>
+            <div class="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+                <p class="text-[12px] text-muted-foreground">Déjà remboursé</p>
+                <p class="text-xl font-semibold text-emerald-700 mt-1">{{ formatCHF(retrocession.totalPaid) }}</p>
+              </div>
+              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+                <p class="text-[12px] text-muted-foreground">Restant à rembourser</p>
+                <p class="text-xl font-semibold mt-1" :class="retrocession.remainingToPay > 0 ? 'text-amber-700' : 'text-emerald-700'">
+                  {{ formatCHF(retrocession.remainingToPay) }}
+                </p>
+              </div>
+              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+                <p class="text-[12px] text-muted-foreground">Chiffre d'affaires</p>
+                <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalSales) }}</p>
+              </div>
+              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+                <p class="text-[12px] text-muted-foreground">Gains commerce</p>
+                <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.storeEarnings) }}</p>
+              </div>
             </div>
           </div>
 
-          <!-- Action globale -->
-          <div class="flex items-center justify-between mb-4">
-            <span
-              class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium"
-              :class="retrocession.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'"
-            >
-              {{ retrocession.status === 'paid' ? 'Tout remboursé' : 'Remboursement en attente' }}
-            </span>
-            <button
-              v-if="retrocession.remainingToPay > 0"
-              class="h-9 px-3 bg-primary text-primary-foreground rounded-md text-[13px] font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              :disabled="isMarkingPaid"
-              @click="handleMarkAllPaid"
-            >
-              Tout marquer remboursé
-            </button>
+          <!-- Barre d'actions : filtre période + impression + tout marquer -->
+          <div class="flex items-end justify-between gap-4 flex-wrap mb-4">
+            <div class="flex items-end gap-2">
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-medium text-muted-foreground">Du</label>
+                <input v-model="retroFrom" type="date" class="h-9 px-2.5 bg-card border border-border rounded-md text-[13px] outline-none focus:ring-1 focus:ring-foreground/20" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-medium text-muted-foreground">Au</label>
+                <input v-model="retroTo" type="date" class="h-9 px-2.5 bg-card border border-border rounded-md text-[13px] outline-none focus:ring-1 focus:ring-foreground/20" />
+              </div>
+              <button
+                v-if="retroFrom || retroTo"
+                class="h-9 px-2.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+                @click="resetRetroFilter"
+              >
+                Réinitialiser
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
+                @click="printRetroStatement"
+              >
+                <Printer class="w-4 h-4" :stroke-width="1.75" />
+                Imprimer le relevé
+              </button>
+              <button
+                v-if="retrocession.remainingToPay > 0"
+                class="h-9 px-3 bg-primary text-primary-foreground rounded-md text-[13px] font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                :disabled="isMarkingPaid"
+                @click="handleMarkAllPaid"
+              >
+                Tout marquer remboursé
+              </button>
+            </div>
           </div>
 
           <!-- Détail par article -->
-          <DataTable :columns="retroColumns" :rows="retrocession.items" row-key="articleId" empty-text="Aucun article vendu.">
+          <DataTable :columns="retroColumns" :rows="retroItemsView" row-key="articleId" empty-text="Aucun article vendu sur cette période.">
             <template #cell-article="{ row }">
               <span class="font-medium text-foreground">{{ row.brand }} · {{ row.type }}</span>
-              <span class="block font-mono text-[11px] text-muted-foreground">{{ row.barcode }}</span>
+              <span class="block text-[11px] text-muted-foreground">{{ row.description || row.barcode }}</span>
             </template>
             <template #cell-saleDate="{ value }">
               <span class="text-muted-foreground">{{ formatDate(value) }}</span>
@@ -494,13 +610,13 @@ onUnmounted(() => {
             <template #cell-retrocessionPaid="{ row }">
               <span
                 v-if="row.retrocessionPaid"
-                class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"
+                class="inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700"
                 :title="row.retrocessionPaidAt ? `Remboursé le ${formatDate(row.retrocessionPaidAt)}` : 'Remboursé'"
               >
-                Remboursé
+                ✅ Remboursé
               </span>
-              <span v-else class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">
-                À rembourser
+              <span v-else class="inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">
+                ⏳ En attente
               </span>
             </template>
             <template #cell-actions="{ row }">
@@ -518,6 +634,25 @@ onUnmounted(() => {
         </template>
         <div v-else class="text-muted-foreground text-sm py-10 text-center bg-card rounded-xl border border-border/60">
           Aucun article vendu pour cette cliente.
+        </div>
+
+        <!-- Section articles restitués -->
+        <div v-if="returnedArticles.length" class="mt-6">
+          <h3 class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            Articles restitués
+            <span class="text-muted-foreground/60 font-normal">({{ returnedArticles.length }})</span>
+          </h3>
+          <div class="bg-card rounded-xl border border-border/60 shadow-sm divide-y divide-border/50">
+            <div v-for="a in returnedArticles" :key="a._id" class="flex items-center justify-between px-4 py-3">
+              <div class="min-w-0">
+                <p class="text-[13px] font-medium text-foreground truncate">{{ a.brand }} · {{ a.type }}</p>
+                <p class="text-[11px] text-muted-foreground">{{ a.description || a.barcode }}</p>
+              </div>
+              <span class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium bg-black/5 text-muted-foreground shrink-0">
+                Restitué à la cliente
+              </span>
+            </div>
+          </div>
         </div>
       </div>
       <div v-else-if="activeTab === 'receipts'">
