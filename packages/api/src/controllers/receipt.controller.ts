@@ -22,6 +22,18 @@ export const receiptController = {
         return res.status(400).json({ message: "Certains articles sont introuvables ou n'appartiennent pas à cette cliente." });
       }
 
+      // Si c'est un bon de dépôt, vérifier qu'aucun article n'a déjà fait l'objet d'un bon de dépôt
+      if (data.type === 'deposit') {
+        const existingDeposit = await Receipt.findOne({
+          clientId: data.clientId,
+          type: 'deposit',
+          articleIds: { $in: data.articleIds },
+        });
+        if (existingDeposit) {
+          return res.status(400).json({ message: "Certains articles sélectionnés ont déjà fait l'objet d'un bon de dépôt." });
+        }
+      }
+
       // Si c'est une restitution, vérifier qu'aucun article n'est 'sold'
       if (data.type === 'restitution') {
         const soldArticles = articles.filter(a => a.status === 'sold');

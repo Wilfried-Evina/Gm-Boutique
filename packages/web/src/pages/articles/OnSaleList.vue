@@ -36,7 +36,7 @@
       <template #cell-actions="{ row: item }">
         <div class="flex justify-end space-x-2">
           <!-- Action: Restituer -->
-          <button @click="articleStore.changeStatus(item._id, 'returned')" class="text-xs font-medium text-orange-600 hover:text-orange-900">Restituer</button>
+          <button @click="openRestitution(item)" class="text-xs font-medium text-orange-600 hover:text-orange-900" title="Restituer l'article">Restituer</button>
         </div>
       </template>
     </DataTable>
@@ -53,21 +53,33 @@
       :barcode="selectedBarcode" 
       @close="isBarcodeModalOpen = false" 
     />
+
+    <QrSignatureModal
+      :isOpen="isRestitutionQrModalOpen"
+      signatureType="standard"
+      @close="isRestitutionQrModalOpen = false"
+      @signed="handleRestitutionSignature"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useArticleStore } from '../../stores/articles';
 import { listClients } from '../../api/clients';
+import { createReceipt } from '../../api/receipts';
+import { useNotificationsStore } from '../../stores/notifications';
 import DataTable from '../../components/ui/DataTable.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import ArticleFormModal from '../../components/articles/ArticleFormModal.vue';
 import BarcodePreviewModal from '../../components/articles/BarcodePreviewModal.vue';
+import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
 
 const route = useRoute();
+const router = useRouter();
 const articleStore = useArticleStore();
+const notify = useNotificationsStore();
 const statusFilter = ref('on_sale');
 const clientFilter = ref('');
 const clients = ref<any[]>([]);
@@ -129,6 +141,36 @@ const openBarcodeScanner = () => {
     // Si c'est un vrai scan, on pourrait appeler l'API et rediriger ou ouvrir une modale.
     // Pour la démo, on ouvre l'aperçu !
     openBarcode(code.trim().toUpperCase());
+  }
+};
+
+const isRestitutionQrModalOpen = ref(false);
+const articleToRestitute = ref<any>(null);
+
+const openRestitution = (item: any) => {
+  articleToRestitute.value = item;
+  isRestitutionQrModalOpen.value = true;
+};
+
+const handleRestitutionSignature = async (payload: { signatureBase64: string }) => {
+  if (!articleToRestitute.value) return;
+  
+  try {
+    const clientId = articleToRestitute.value.clientId._id || articleToRestitute.value.clientId;
+    await createReceipt({
+      clientId: clientId,
+      type: 'restitution',
+      articleIds: [articleToRestitute.value._id],
+      signatureData: payload.signatureBase64
+    });
+    
+    isRestitutionQrModalOpen.value = false;
+    articleToRestitute.value = null;
+    notify.success("Restitution effectuée. Le bon a été généré.");
+    articleStore.fetchArticles(1);
+  } catch (err) {
+    console.error(err);
+    notify.error("Erreur lors de la restitution.");
   }
 };
 </script>

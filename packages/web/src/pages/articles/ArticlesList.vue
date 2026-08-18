@@ -105,7 +105,7 @@
           <button v-if="item.status === 'deposited'" @click="articleStore.changeStatus(item._id, 'on_sale')" class="text-xs font-medium text-blue-600 hover:text-blue-900">En Vente</button>
           
           <!-- Action: Restituer (si en dépôt ou en vente) -->
-          <button v-if="['deposited', 'on_sale'].includes(item.status)" @click="articleStore.changeStatus(item._id, 'returned')" class="text-xs font-medium text-orange-600 hover:text-orange-900">Restituer</button>
+          <button v-if="['deposited', 'on_sale'].includes(item.status)" @click="openRestitution(item)" class="text-xs font-medium text-orange-600 hover:text-orange-900" title="Restituer l'article">Restituer</button>
         </div>
       </template>
     </DataTable>
@@ -123,6 +123,13 @@
       :barcode="selectedBarcode" 
       :article="selectedArticle"
       @close="isBarcodeModalOpen = false" 
+    />
+
+    <QrSignatureModal
+      :isOpen="isRestitutionQrModalOpen"
+      signatureType="standard"
+      @close="isRestitutionQrModalOpen = false"
+      @signed="handleRestitutionSignature"
     />
 
     <!-- Scanner Modal -->
@@ -164,7 +171,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useArticleStore } from '../../stores/articles';
 import { listClients } from '../../api/clients';
 import DataTable from '../../components/ui/DataTable.vue';
@@ -172,9 +179,13 @@ import StatusBadge from '../../components/ui/StatusBadge.vue';
 import Modal from '../../components/ui/Modal.vue';
 import ArticleFormModal from '../../components/articles/ArticleFormModal.vue';
 import BarcodePreviewModal from '../../components/articles/BarcodePreviewModal.vue';
+import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
 import { printArticlesLabels } from '../../utils/printLabels';
+import { createReceipt } from '../../api/receipts';
+import { useNotificationsStore } from '../../stores/notifications';
 
 const route = useRoute();
+const router = useRouter();
 const articleStore = useArticleStore();
 const statusFilter = ref('');
 const clientFilter = ref('');
@@ -298,4 +309,35 @@ const handlePrintSelected = () => {
   const selected = articleStore.articles.filter((a: any) => selectedArticlesIds.value.includes(a._id));
   printArticlesLabels(selected);
 };
+const isRestitutionQrModalOpen = ref(false);
+const articleToRestitute = ref<any>(null);
+const notify = useNotificationsStore();
+
+const openRestitution = (item: any) => {
+  articleToRestitute.value = item;
+  isRestitutionQrModalOpen.value = true;
+};
+
+const handleRestitutionSignature = async (payload: { signatureBase64: string }) => {
+  if (!articleToRestitute.value) return;
+  
+  try {
+    const clientId = articleToRestitute.value.clientId._id || articleToRestitute.value.clientId;
+    await createReceipt({
+      clientId: clientId,
+      type: 'restitution',
+      articleIds: [articleToRestitute.value._id],
+      signatureData: payload.signatureBase64
+    });
+    
+    isRestitutionQrModalOpen.value = false;
+    articleToRestitute.value = null;
+    notify.success("Restitution effectuée. Le bon a été généré.");
+    articleStore.fetchArticles(1);
+  } catch (err) {
+    console.error(err);
+    notify.error("Erreur lors de la restitution.");
+  }
+};
+
 </script>

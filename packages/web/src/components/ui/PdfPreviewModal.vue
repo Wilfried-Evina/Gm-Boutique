@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { onUnmounted, watch } from 'vue';
+import { computed, onUnmounted, watch } from 'vue';
 import { X, Download, Printer, ExternalLink } from 'lucide-vue-next';
 
 const props = defineProps<{
   open: boolean;
-  blobUrl: string;
+  blobUrl?: string | null;
+  pdfUrl?: string | null;
   fileName?: string;
   title?: string;
 }>();
 
 const emit = defineEmits<{ (e: 'update:open', value: boolean): void }>();
+
+const srcUrl = computed(() => props.pdfUrl || props.blobUrl || '');
 
 function close() {
   emit('update:open', false);
@@ -20,8 +23,9 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function download() {
+  if (!srcUrl.value) return;
   const a = document.createElement('a');
-  a.href = props.blobUrl;
+  a.href = srcUrl.value;
   a.download = props.fileName || 'document.pdf';
   document.body.appendChild(a);
   a.click();
@@ -29,11 +33,13 @@ function download() {
 }
 
 function openInNewTab() {
-  window.open(props.blobUrl, '_blank');
+  if (!srcUrl.value) return;
+  window.open(srcUrl.value, '_blank');
 }
 
 // Impression fiable : iframe cachée dédiée (indépendante de l'aperçu <embed>).
 function print() {
+  if (!srcUrl.value) return;
   const frame = document.createElement('iframe');
   frame.style.position = 'fixed';
   frame.style.right = '0';
@@ -41,7 +47,7 @@ function print() {
   frame.style.width = '0';
   frame.style.height = '0';
   frame.style.border = '0';
-  frame.src = props.blobUrl;
+  frame.src = srcUrl.value;
   frame.onload = () => {
     try {
       frame.contentWindow?.focus();
@@ -114,12 +120,12 @@ onUnmounted(() => {
         <!-- Aperçu PDF (embed = élément le plus fiable ; repli si non supporté) -->
         <div class="flex-1 min-h-0 bg-black/[0.04] flex items-center justify-center">
           <embed
-            v-if="blobUrl"
-            :src="blobUrl"
+            v-if="srcUrl"
+            :src="srcUrl"
             type="application/pdf"
             class="w-full h-full"
           />
-          <div class="text-center px-6" v-else>
+          <div v-else class="text-center px-6">
             <p class="text-sm text-muted-foreground">Aucun document à afficher.</p>
           </div>
         </div>

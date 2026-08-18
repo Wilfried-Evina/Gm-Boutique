@@ -22,10 +22,22 @@
       <!-- En-tête dynamique selon le contexte -->
       <div class="text-center">
         <h1 class="text-2xl font-bold text-gray-800">
-          {{ isFirstDeposit ? "Bienvenue chez Gm-Boutique" : "Validation" }}
+          {{
+            isFirstDeposit
+              ? "Bienvenue chez GM Boutique"
+              : isRetrocession
+              ? "Quittance de Rétrocession (Espèces)"
+              : "Validation de Dépôt"
+          }}
         </h1>
         <p class="text-gray-500 mt-2 text-sm">
-          {{ isFirstDeposit ? "Veuillez accepter nos conditions et signer ci-dessous." : "Veuillez apposer votre signature pour confirmer." }}
+          {{
+            isFirstDeposit
+              ? "Veuillez accepter nos conditions et signer ci-dessous."
+              : isRetrocession
+              ? "Veuillez apposer votre signature pour confirmer la bonne réception de votre versement en espèces."
+              : "Veuillez apposer votre signature pour confirmer."
+          }}
         </p>
       </div>
 
@@ -95,6 +107,7 @@ const success = ref(false);
 const isSubmitting = ref(false);
 
 const isFirstDeposit = ref(false);
+const isRetrocession = ref(false);
 const cguAccepted = ref(false);
 
 const signatureCanvas = ref<HTMLCanvasElement | null>(null);
@@ -135,6 +148,7 @@ const fetchSession = async () => {
     }
 
     isFirstDeposit.value = data.signatureType === 'first_deposit';
+    isRetrocession.value = data.signatureType === 'retrocession';
     loading.value = false;
 
     // Initialiser le pad après le rendu du DOM

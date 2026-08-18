@@ -16,15 +16,14 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 
 export const pdfService = {
-  async generateClientProfile(client: IClient): Promise<string> {
+  async generateClientProfilePDFBuffer(client: IClient): Promise<Buffer> {
     return new Promise(async (resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50, size: 'A4' });
-        const fileName = `client_${client._id}_${Date.now()}.pdf`;
-        const filePath = path.join(UPLOADS_DIR, fileName);
-        const writeStream = fs.createWriteStream(filePath);
-
-        doc.pipe(writeStream);
+        const chunks: Buffer[] = [];
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', (err) => reject(err));
 
         // Header / Logo
         const logoPath = path.join(__dirname, '../../assets/logo.png');
@@ -85,6 +84,14 @@ export const pdfService = {
         doc.text(`Articles restitués: ${returned.length}`);
         doc.text(`Total des articles: ${articles.length}`);
 
+        const totalRetroPaid = sold.filter((a: any) => a.retrocessionPaid).reduce((acc, a) => acc + (a.finalClientAmount ?? a.clientPrice ?? 0), 0);
+        const totalRetroPending = sold.filter((a: any) => !a.retrocessionPaid).reduce((acc, a) => acc + (a.finalClientAmount ?? a.clientPrice ?? 0), 0);
+
+        doc.moveDown(0.5);
+        doc.fillColor('#059669').text(`Rétrocessions versées : ${totalRetroPaid.toFixed(2)} CHF`);
+        doc.fillColor('#B45309').text(`Reste à verser : ${totalRetroPending.toFixed(2)} CHF`);
+        doc.fillColor('#000000');
+
         doc.moveDown(2);
 
         // Liste détaillée des articles
@@ -112,7 +119,7 @@ export const pdfService = {
             'expired': 'Expiré'
           };
           
-          for (const article of articles) {
+          for (const article of articles as any[]) {
             if (currentListY > 650) {
               doc.addPage();
               currentListY = 50;
@@ -127,10 +134,19 @@ export const pdfService = {
               doc.font('Helvetica');
             }
             
+            let displayStatus = statusMap[article.status] || article.status;
+            if (article.status === 'sold') {
+              if (article.retrocessionPaid) {
+                displayStatus = 'Vendu';
+              } else {
+                displayStatus = 'Vendu (À verser)';
+              }
+            }
+
             doc.text(article.barcode || '-', 50, currentListY);
             doc.text(article.brand || '-', 120, currentListY);
             doc.text(article.type || '-', 250, currentListY);
-            doc.text(statusMap[article.status] || article.status, 380, currentListY);
+            doc.text(displayStatus, 380, currentListY);
             doc.text(`${article.clientPrice.toFixed(2)} CHF`, 480, currentListY);
             
             currentListY += 20;
@@ -168,31 +184,9 @@ export const pdfService = {
           }
         }
 
-        // Footer
-        doc.fontSize(9).fillColor('#999999').text(
-          'GM Boutique - Les conditions générales complètes sont disponibles en boutique.',
-          50,
-          750,
-          { align: 'center' }
-        );
+        // Footer retiré
 
         doc.end();
-
-        writeStream.on('finish', async () => {
-          // Save to database
-          const referenceNumber = `DOC-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-          const newDoc = await DocumentModel.create({
-            clientId: client._id,
-            type: 'client_profile',
-            fileUrl: `/uploads/documents/${fileName}`,
-            referenceNumber
-          });
-          resolve(newDoc.fileUrl);
-        });
-
-        writeStream.on('error', (err) => {
-          reject(err);
-        });
       } catch (error) {
         reject(error);
       }
@@ -376,6 +370,176 @@ export const pdfService = {
             referenceNumber
           });
           resolve(newDoc.fileUrl);
+        });
+
+        writeStream.on('error', (err) => reject(err));
+      } catch (error) {
+        reject(error);
+      }
+    });
+  },
+
+  async generateRetrocessionReceiptPDF(
+    client: { _id: string; firstName: string; lastName: string; referenceNumber?: string; phone?: string; address?: string },
+    articles: { barcode: string; brand?: string; type?: string; description?: string; finalClientAmount?: number; clientPrice?: number; updatedAt?: string | Date; saleDate?: string | Date }[],
+    paymentMethod: 'bank_transfer' | 'twint' | 'cash',
+    reference?: string,
+    totalAmount?: number,
+    signatureBase64?: string
+  ): Promise<{ fileUrl: string; documentId: string }> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+        const fileName = `retrocession_${client._id}_${Date.now()}.pdf`;
+        const filePath = path.join(UPLOADS_DIR, fileName);
+        const writeStream = fs.createWriteStream(filePath);
+
+        doc.pipe(writeStream);
+
+        // Header / Logo
+        const logoPath = path.join(__dirname, '../../assets/logo.png');
+        if (fs.existsSync(logoPath)) {
+          doc.image(logoPath, 50, 45, { width: 100 });
+        }
+
+        doc
+          .fillColor('#000000')
+          .fontSize(18)
+          .font('Helvetica-Bold')
+          .text('QUITTANCE DE RÈGLEMENT', 50, 55, { align: 'right' });
+
+        doc
+          .fontSize(10)
+          .font('Helvetica')
+          .fillColor('#666666')
+          .text('Rétrocession Déposante', 50, 78, { align: 'right' })
+          .text(`Date : ${new Intl.DateTimeFormat('fr-CH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date())}`, { align: 'right' });
+
+        doc.moveDown(3);
+
+        // Bloc Informations Déposante & Paiement
+        const startY = 120;
+        doc.roundedRect(50, startY, 495, 85, 6).fillAndStroke('#FAFAFA', '#E4E4E7');
+
+        doc.fillColor('#000000').fontSize(11).font('Helvetica-Bold');
+        doc.text('DÉPOSANTE', 65, startY + 12);
+        doc.text('DÉTAILS DU RÈGLEMENT', 300, startY + 12);
+
+        doc.fontSize(10).font('Helvetica').fillColor('#3F3F46');
+        doc.text(`${client.firstName} ${client.lastName}`, 65, startY + 30);
+        doc.text(`Réf : ${client.referenceNumber || 'N/A'}`, 65, startY + 45);
+        doc.text(`Tél : ${client.phone || 'Non renseigné'}`, 65, startY + 60);
+
+        const methodLabels: Record<string, string> = {
+          bank_transfer: 'Virement bancaire',
+          twint: 'TWINT',
+          cash: 'Espèces',
+        };
+        const methodLabel = methodLabels[paymentMethod] || paymentMethod || 'Autre';
+
+        doc.text(`Moyen : ${methodLabel}`, 300, startY + 30);
+        if (reference) {
+          doc.text(`Référence : ${reference}`, 300, startY + 45);
+        }
+        if (paymentMethod === 'bank_transfer' && client.address) {
+          doc.text(`Adresse : ${client.address}`, 300, startY + 60);
+        }
+
+        // Tableau des articles réglés
+        let tableY = startY + 105;
+        doc.fillColor('#000000').fontSize(12).font('Helvetica-Bold');
+        doc.text('ARTICLES RÉGLÉS', 50, tableY);
+        tableY += 20;
+
+        // Entêtes du tableau (SANS AUCUN PRIX PUBLIC)
+        doc.rect(50, tableY, 495, 22).fill('#F4F4F5');
+        doc.fillColor('#18181B').fontSize(9).font('Helvetica-Bold');
+        doc.text('Code-barres', 60, tableY + 6);
+        doc.text('Article / Description', 170, tableY + 6);
+        doc.text('Date vente', 360, tableY + 6);
+        doc.text('Montant Versé', 440, tableY + 6, { width: 95, align: 'right' });
+
+        let currentY = tableY + 28;
+        doc.font('Helvetica').fontSize(9).fillColor('#27272A');
+
+        let totalCalculated = 0;
+        for (const a of articles) {
+          if (currentY > 660) {
+            doc.addPage();
+            currentY = 50;
+          }
+
+          const clientAmount = a.finalClientAmount ?? a.clientPrice ?? 0;
+          totalCalculated += clientAmount;
+
+          const articleName = `${a.brand || ''} ${a.type || ''}`.trim() || 'Article';
+          const saleDateStr = a.updatedAt || a.saleDate ? new Intl.DateTimeFormat('fr-CH').format(new Date(a.updatedAt || a.saleDate)) : '-';
+
+          doc.text(a.barcode || '-', 60, currentY);
+          doc.text(articleName, 170, currentY, { width: 180, lineBreak: false });
+          doc.text(saleDateStr, 360, currentY);
+          doc.font('Helvetica-Bold').text(`${clientAmount.toFixed(2)} CHF`, 440, currentY, { width: 95, align: 'right' });
+          doc.font('Helvetica');
+
+          currentY += 18;
+          doc.moveTo(50, currentY - 4).lineTo(545, currentY - 4).stroke('#F4F4F5');
+        }
+
+        // Total
+        const finalTotal = totalAmount !== undefined ? totalAmount : totalCalculated;
+        currentY += 10;
+        doc.rect(320, currentY, 225, 36).fillAndStroke('#ECFDF5', '#A7F3D0');
+        doc.fillColor('#065F46').fontSize(11).font('Helvetica-Bold');
+        doc.text('TOTAL VERSÉ :', 330, currentY + 12);
+        doc.fontSize(13).text(`${finalTotal.toFixed(2)} CHF`, 420, currentY + 10, { width: 115, align: 'right' });
+
+        // Mentions et signature de la déposante uniquement
+        let footerBlockY = currentY + 70;
+        if (footerBlockY > 720) {
+          doc.addPage();
+          footerBlockY = 50;
+        }
+
+        doc.fillColor('#71717A').fontSize(8).font('Helvetica');
+        doc.text(
+          'Ce document constitue une quittance officielle de versement de rétrocession émise par GM Boutique. Il atteste du bon règlement des gains dus pour les articles vendus indiqués ci-dessus.',
+          50,
+          footerBlockY,
+          { width: 495, align: 'justify' }
+        );
+
+        if (paymentMethod === 'cash') {
+          if (signatureBase64) {
+            try {
+              const base64Data = signatureBase64.replace(/^data:image\/\w+;base64,/, '');
+              const buffer = Buffer.from(base64Data, 'base64');
+              doc.image(buffer, 360, footerBlockY + 15, { width: 140, height: 45, fit: [140, 45] });
+            } catch (e) {
+              doc.fillColor('#059669').fontSize(9).font('Helvetica-Bold').text('✓ Signature électronique validée', 360, footerBlockY + 25);
+            }
+            doc.fillColor('#3F3F46').fontSize(8).font('Helvetica');
+            doc.text('Signature électronique de la déposante (Espèces reçues)', 340, footerBlockY + 65, { width: 200, align: 'center' });
+          } else {
+            doc.moveTo(340, footerBlockY + 45).lineTo(540, footerBlockY + 45).stroke('#D4D4D8');
+            doc.fillColor('#3F3F46').fontSize(8).font('Helvetica');
+            doc.text('Signature de la déposante (Pour acquit des espèces)', 340, footerBlockY + 50, { width: 200, align: 'center' });
+          }
+        } else {
+          doc.fillColor('#059669').fontSize(9).font('Helvetica-Bold');
+          doc.text(`✓ Règlement électronique effectué par ${methodLabel} — Pièce comptable certifiée sans contact`, 50, footerBlockY + 25);
+        }
+
+        doc.end();
+
+        writeStream.on('finish', async () => {
+          const referenceNumber = `QUITT-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+          const newDoc = await DocumentModel.create({
+            clientId: client._id,
+            type: 'retrocession',
+            fileUrl: `/uploads/documents/${fileName}`,
+            referenceNumber,
+          });
+          resolve({ fileUrl: newDoc.fileUrl, documentId: newDoc._id.toString() });
         });
 
         writeStream.on('error', (err) => reject(err));

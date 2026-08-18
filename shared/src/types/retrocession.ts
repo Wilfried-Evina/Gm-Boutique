@@ -1,3 +1,5 @@
+export type RetrocessionPaymentMethod = 'bank_transfer' | 'twint' | 'cash';
+
 export interface IRetrocessionItem {
   articleId: string;
   barcode: string;
@@ -5,20 +7,23 @@ export interface IRetrocessionItem {
   type: string;
   saleDate?: string | Date;
   finalSalePrice: number; // prix de vente effectif
-  finalClientAmount: number; // montant net dû à la cliente
+  finalClientAmount: number; // montant net dû à la déposante
   retrocessionPaid: boolean;
   retrocessionPaidAt?: string | Date;
+  retrocessionPaymentMethod?: RetrocessionPaymentMethod | string;
+  retrocessionReference?: string;
+  retrocessionReceiptId?: string;
 }
 
 export interface IRetrocessionSummary {
   clientId: string;
   clientName: string;
 
-  // Calculs (voir issue #24)
+  // Calculs
   totalSales: number; // Chiffre d'affaires = Σ finalSalePrice (articles vendus)
-  totalRetrocessions: number; // Σ finalClientAmount (articles vendus)
-  totalPaid: number; // montant déjà remboursé
-  remainingToPay: number; // Total rétrocessions - déjà remboursé
+  totalRetrocessions: number; // Σ finalClientAmount (total des gains des déposantes)
+  totalPaid: number; // montant déjà versé
+  remainingToPay: number; // Total rétrocessions - déjà versé
   storeEarnings: number; // Gains commerce = CA - Total rétrocessions
   totalArticlesSold: number;
 
@@ -28,4 +33,19 @@ export interface IRetrocessionSummary {
   // Compatibilité / affichage
   totalAmountDue: number; // = remainingToPay
   status: 'pending' | 'paid';
+}
+
+export interface IRetrocessionPayPayload {
+  clientId: string;
+  articleIds?: string[];
+  paymentMethod: RetrocessionPaymentMethod;
+  reference?: string;
+  signatureBase64?: string;
+}
+
+export interface IRetrocessionGlobalStats {
+  totalGlobalRetrocessions: number; // Total dû (cumulé)
+  totalGlobalPaid: number;           // Déjà versé
+  totalGlobalRemaining: number;      // Reste à verser
+  clientsWithPendingCount: number;   // Nombre de déposantes en attente de versement
 }
