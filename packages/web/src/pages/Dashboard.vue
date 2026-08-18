@@ -100,18 +100,14 @@ const chartOptions = computed(() => ({
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto">
-    <!-- En-tête + filtre période -->
-    <div class="flex items-end justify-between gap-4 flex-wrap mb-6">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight text-foreground">Bonjour {{ prenom }} 👋</h1>
-        <p class="text-sm text-muted-foreground mt-1">Aperçu de l'activité de la boutique.</p>
-      </div>
+  <div class="w-full">
+    <!-- Filtre période centré -->
+    <div class="flex items-center justify-center mb-6">
       <div class="inline-flex items-center bg-black/5 rounded-lg p-0.5">
         <button
           v-for="p in periods"
           :key="p.key"
-          class="h-8 px-3 rounded-md text-[13px] font-medium transition-colors"
+          class="h-8 px-4 rounded-md text-[13px] font-medium transition-colors"
           :class="period === p.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
           @click="period = p.key"
         >
@@ -122,35 +118,36 @@ const chartOptions = computed(() => ({
 
     <!-- Cartes KPI -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
-        <div class="flex items-center justify-between mb-3">
-          <div class="w-9 h-9 rounded-lg bg-black/5 flex items-center justify-center">
-            <TrendingUp class="w-[18px] h-[18px] text-foreground/70" :stroke-width="1.75" />
-          </div>
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center text-center justify-center">
+        <div class="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center mb-3">
+          <TrendingUp class="w-5 h-5 text-foreground/70" :stroke-width="1.75" />
         </div>
         <p class="text-2xl font-semibold tracking-tight text-foreground">{{ formatCHF(ca?.totals.totalCA ?? 0) }}</p>
-        <p class="text-[13px] text-muted-foreground mt-0.5">Chiffre d'affaires</p>
+        <p class="text-[13px] text-muted-foreground mt-1">Chiffre d'affaires</p>
       </div>
-      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
-        <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center mb-3">
-          <ArrowUpRight class="w-[18px] h-[18px] text-emerald-700" :stroke-width="1.75" />
+
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center text-center justify-center">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center mb-3">
+          <ArrowUpRight class="w-5 h-5 text-emerald-700" :stroke-width="1.75" />
         </div>
         <p class="text-2xl font-semibold tracking-tight text-emerald-700">{{ formatCHF(ca?.totals.storeEarnings ?? 0) }}</p>
-        <p class="text-[13px] text-muted-foreground mt-0.5">Gains commerce</p>
+        <p class="text-[13px] text-muted-foreground mt-1">Gains commerce</p>
       </div>
-      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
-        <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center mb-3">
-          <Banknote class="w-[18px] h-[18px] text-amber-700" :stroke-width="1.75" />
+
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center text-center justify-center">
+        <div class="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+          <Banknote class="w-5 h-5 text-amber-700" :stroke-width="1.75" />
         </div>
         <p class="text-2xl font-semibold tracking-tight text-foreground">{{ formatCHF(stats?.pendingRetroAmount ?? 0) }}</p>
-        <p class="text-[13px] text-muted-foreground mt-0.5">Rétrocessions en attente ({{ stats?.pendingRetroCount ?? 0 }})</p>
+        <p class="text-[13px] text-muted-foreground mt-1">Rétrocessions en attente ({{ stats?.pendingRetroCount ?? 0 }})</p>
       </div>
-      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 cursor-pointer hover:border-foreground/20 transition-colors" @click="router.push('/articles/en-vente')">
-        <div class="w-9 h-9 rounded-lg bg-black/5 flex items-center justify-center mb-3">
-          <Package class="w-[18px] h-[18px] text-foreground/70" :stroke-width="1.75" />
+
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center text-center justify-center cursor-pointer hover:border-foreground/20 hover:shadow-md transition-all" @click="router.push('/articles/en-vente')">
+        <div class="w-10 h-10 rounded-xl bg-black/5 flex items-center justify-center mb-3">
+          <Package class="w-5 h-5 text-foreground/70" :stroke-width="1.75" />
         </div>
         <p class="text-2xl font-semibold tracking-tight text-foreground">{{ stats?.articles.onSale ?? 0 }}</p>
-        <p class="text-[13px] text-muted-foreground mt-0.5">Articles en vente · taux {{ stats?.sellRate ?? 0 }}%</p>
+        <p class="text-[13px] text-muted-foreground mt-1">Articles en vente · taux {{ stats?.sellRate ?? 0 }}%</p>
       </div>
     </div>
 

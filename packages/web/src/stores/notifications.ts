@@ -25,10 +25,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
   const success = (message: string, duration?: number) => notify(message, 'success', duration);
   const error = (message: string, duration?: number) => notify(message, 'error', duration);
   const info = (message: string, duration?: number) => notify(message, 'info', duration);
+  const warning = (message: string, duration?: number) => notify(message, 'info', duration);
 
   function dismiss(id: number) {
     toasts.value = toasts.value.filter((t) => t.id !== id);
   }
 
-  return { toasts, notify, success, error, info, dismiss };
+  return { toasts, notify, success, error, info, warning, dismiss };
 });

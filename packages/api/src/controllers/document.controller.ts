@@ -15,11 +15,12 @@ export const documentController = {
         return res.status(404).json({ message: "Cliente introuvable." });
       }
 
-      const fileUrl = await pdfService.generateClientProfile(client as any);
+      const pdfBuffer = await pdfService.generateClientProfilePDFBuffer(client as any);
 
-      // Return the generated document record
-      const doc = await DocumentModel.findOne({ fileUrl });
-      res.status(201).json(doc);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Fiche_Cliente_${client.referenceNumber}.pdf"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.send(pdfBuffer);
     } catch (error) {
       logger.error('Error generating client profile PDF:', error);
       res.status(500).json({ message: "Erreur lors de la génération du PDF." });

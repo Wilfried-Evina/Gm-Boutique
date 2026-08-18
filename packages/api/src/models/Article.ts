@@ -34,6 +34,9 @@ const articleSchema = new Schema<IArticleDocument>(
     status: { type: String, enum: Object.values(ArticleStatus), default: ArticleStatus.DEPOSITED },
     retrocessionPaid: { type: Boolean, default: false },
     retrocessionPaidAt: { type: Date },
+    retrocessionPaymentMethod: { type: String },
+    retrocessionReference: { type: String },
+    retrocessionReceiptId: { type: Schema.Types.ObjectId, ref: 'Document' },
   },
   { timestamps: true }
 );

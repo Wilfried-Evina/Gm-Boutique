@@ -36,7 +36,7 @@
                 <th scope="col" class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider text-xs">Code</th>
                 <th scope="col" class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider text-xs">Marque</th>
                 <th scope="col" class="px-4 py-2 text-left font-medium text-gray-500 uppercase tracking-wider text-xs">Type</th>
-                <th scope="col" class="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider text-xs">Gain</th>
+                <th scope="col" class="px-4 py-2 text-right font-medium text-gray-500 uppercase tracking-wider text-xs">Valeur</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -97,7 +97,7 @@
       <thead>
         <tr>
           <th style="text-align: left;">Article</th>
-          <th style="text-align: right;">Gain</th>
+          <th style="text-align: right;">Valeur</th>
         </tr>
       </thead>
       <tbody>

@@ -3,9 +3,10 @@ import { Article } from '../models/Article';
 import { Client } from '../models/Client';
 import { ArticleStatus } from '@gm-boutique/shared';
 import type { IRetrocessionSummary } from '@gm-boutique/shared';
+import { pdfService } from '../services/pdf.service';
 
 /**
- * Calcule la rétrocession d'une cliente à partir de ses articles vendus.
+ * Calcule la rétrocession d'une déposante à partir de ses articles vendus.
  * Aucun flux négatif : les montants dus sont toujours ≥ 0 ; les articles
  * restitués (non vendus) ne génèrent aucun montant.
  */
@@ -41,6 +42,9 @@ export async function computeRetrocession(clientId: string): Promise<IRetrocessi
       finalClientAmount: clientAmount,
       retrocessionPaid: a.retrocessionPaid,
       retrocessionPaidAt: a.retrocessionPaidAt,
+      retrocessionPaymentMethod: a.retrocessionPaymentMethod,
+      retrocessionReference: a.retrocessionReference,
+      retrocessionReceiptId: a.retrocessionReceiptId ? a.retrocessionReceiptId.toString() : undefined,
     };
   });
 
@@ -63,7 +67,41 @@ export async function computeRetrocession(clientId: string): Promise<IRetrocessi
 }
 
 export const retrocessionController = {
-  /** Vue globale : une ligne de synthèse par cliente ayant des ventes. */
+  /** Statistiques globales pour les 4 indicateurs */
+  async getStats(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const soldArticles = await Article.find({ status: ArticleStatus.SOLD });
+      let totalGlobalRetrocessions = 0;
+      let totalGlobalPaid = 0;
+
+      for (const a of soldArticles) {
+        const clientAmount = a.finalClientAmount ?? a.clientPrice ?? 0;
+        totalGlobalRetrocessions += clientAmount;
+        if (a.retrocessionPaid) {
+          totalGlobalPaid += clientAmount;
+        }
+      }
+
+      const totalGlobalRemaining = Math.max(0, totalGlobalRetrocessions - totalGlobalPaid);
+
+      // Déposantes avec solde restant
+      const unpaidClientIds = await Article.find({
+        status: ArticleStatus.SOLD,
+        retrocessionPaid: false,
+      }).distinct('clientId');
+
+      res.json({
+        totalGlobalRetrocessions,
+        totalGlobalPaid,
+        totalGlobalRemaining,
+        clientsWithPendingCount: unpaidClientIds.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Vue globale : une ligne de synthèse par déposante ayant des ventes. */
   async listAll(_req: Request, res: Response, next: NextFunction) {
     try {
       const clientIds = await Article.find({ status: ArticleStatus.SOLD }).distinct('clientId');
@@ -97,14 +135,80 @@ export const retrocessionController = {
   async getForClient(req: Request, res: Response, next: NextFunction) {
     try {
       const summary = await computeRetrocession(req.params.clientId);
-      if (!summary) return res.status(404).json({ message: 'Cliente introuvable.' });
+      if (!summary) return res.status(404).json({ message: 'Déposante introuvable.' });
       res.json(summary);
     } catch (error) {
       next(error);
     }
   },
 
-  /** Marque un article vendu comme remboursé. */
+  /** Règlement sécurisé avec mode de paiement et quittance PDF */
+  async pay(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { clientId, articleIds, paymentMethod, reference, signatureBase64 } = req.body;
+      if (!clientId || !paymentMethod) {
+        return res.status(400).json({ message: 'clientId et paymentMethod sont requis.' });
+      }
+
+      const client = await Client.findById(clientId);
+      if (!client) {
+        return res.status(404).json({ message: 'Déposante introuvable.' });
+      }
+
+      const query: any = {
+        clientId,
+        status: ArticleStatus.SOLD,
+        retrocessionPaid: false,
+      };
+      if (articleIds && Array.isArray(articleIds) && articleIds.length > 0) {
+        query._id = { $in: articleIds };
+      }
+
+      const articlesToPay = await Article.find(query);
+      if (articlesToPay.length === 0) {
+        return res.status(400).json({ message: 'Aucun article en attente de versement trouvé.' });
+      }
+
+      // Calcul montant
+      const totalAmount = articlesToPay.reduce((acc, a) => acc + (a.finalClientAmount ?? a.clientPrice ?? 0), 0);
+
+      // Générer le reçu PDF de rétrocession
+      const receiptDoc = await pdfService.generateRetrocessionReceiptPDF(
+        client,
+        articlesToPay,
+        paymentMethod,
+        reference,
+        totalAmount,
+        signatureBase64
+      );
+
+      // Marquer les articles comme payés avec traçabilité
+      await Article.updateMany(
+        { _id: { $in: articlesToPay.map((a) => a._id) } },
+        {
+          $set: {
+            retrocessionPaid: true,
+            retrocessionPaidAt: new Date(),
+            retrocessionPaymentMethod: paymentMethod,
+            retrocessionReference: reference || '',
+            retrocessionReceiptId: receiptDoc.documentId,
+          },
+        }
+      );
+
+      const summary = await computeRetrocession(clientId);
+      res.json({
+        summary,
+        documentId: receiptDoc.documentId,
+        fileUrl: receiptDoc.fileUrl,
+        message: 'Règlement enregistré et quittance générée avec succès.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Marque un article vendu comme remboursé (méthode de secours). */
   async markPaid(req: Request, res: Response, next: NextFunction) {
     try {
       const article = await Article.findById(req.params.articleId);
@@ -126,7 +230,7 @@ export const retrocessionController = {
     }
   },
 
-  /** Marque tous les articles vendus non payés d'une cliente comme remboursés. */
+  /** Marque tous les articles vendus non payés d'une cliente comme remboursés (méthode de secours). */
   async markAllPaid(req: Request, res: Response, next: NextFunction) {
     try {
       const { clientId } = req.params;
@@ -136,7 +240,7 @@ export const retrocessionController = {
       );
 
       const summary = await computeRetrocession(clientId);
-      if (!summary) return res.status(404).json({ message: 'Cliente introuvable.' });
+      if (!summary) return res.status(404).json({ message: 'Déposante introuvable.' });
       res.json(summary);
     } catch (error) {
       next(error);

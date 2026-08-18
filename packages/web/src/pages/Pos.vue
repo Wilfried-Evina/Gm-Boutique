@@ -43,7 +43,7 @@
                 {{ item.barcode }} | {{ item.color }} {{ item.size ? `| Taille: ${item.size}` : '' }}
               </p>
               <p v-if="item.clientId" class="text-xs font-medium text-indigo-600 mt-0.5">
-                Déposante : {{ item.clientId.firstName }} {{ item.clientId.lastName }}
+                Déposante : {{ typeof item.clientId === 'object' ? `${item.clientId.firstName || ''} ${item.clientId.lastName || ''}`.trim() : item.clientId }}
               </p>
             </div>
             <div class="flex items-center space-x-4">
@@ -192,6 +192,11 @@ const handleGlobalKeydown = (e: KeyboardEvent) => {
   // Ignore if typing in another input/textarea
   const target = e.target as HTMLElement;
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+    return;
+  }
+  
+  // Ignore keyboard shortcuts like Cmd+V, Ctrl+V, Cmd+C, etc.
+  if (e.ctrlKey || e.metaKey) {
     return;
   }
   
