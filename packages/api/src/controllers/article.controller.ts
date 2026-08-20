@@ -193,8 +193,31 @@ export const articleController = {
         'priceReduction.deadlineDate': { $lt: now },
         status: { $in: [ArticleStatus.DEPOSITED, ArticleStatus.ON_SALE] }
       }).populate('clientId', 'firstName lastName phone');
-      
+
       res.json(expiredArticles);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Alertes gérante (issue #30) : articles actifs dont la date butoir approche
+   * (dans le mois) ou est déjà dépassée. Le frontend les répartit ensuite selon
+   * actionOnExpiry (récupération vs baisse de prix).
+   */
+  async getAlerts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const inOneMonth = new Date();
+      inOneMonth.setMonth(inOneMonth.getMonth() + 1);
+
+      const articles = await Article.find({
+        'priceReduction.deadlineDate': { $lte: inOneMonth },
+        status: { $in: [ArticleStatus.DEPOSITED, ArticleStatus.ON_SALE] }
+      })
+        .populate('clientId', 'firstName lastName phone email referenceNumber')
+        .sort({ 'priceReduction.deadlineDate': 1 });
+
+      res.json(articles);
     } catch (error) {
       next(error);
     }

@@ -14,6 +14,7 @@ const ExpiredList = () => import('../pages/articles/ExpiredList.vue');
 const Pos = () => import('../pages/Pos.vue');
 const FacturesList = () => import('../pages/FacturesList.vue');
 const Retrocessions = () => import('../pages/Retrocessions.vue');
+const Alertes = () => import('../pages/Alertes.vue');
 
 const router = createRouter({
   history: createWebHistory(),
@@ -24,7 +25,7 @@ const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         { path: '', name: 'Dashboard', component: Dashboard, meta: { title: 'Tableau de bord' } },
-        { path: 'alertes', name: 'Alertes', component: Placeholder, meta: { title: 'Alertes' } },
+        { path: 'alertes', name: 'Alertes', component: Alertes, meta: { title: 'Alertes' } },
         { path: 'caisse', name: 'Caisse', component: Pos, meta: { title: 'Caisse' } },
         { path: 'clients', name: 'Clientes', component: ClientsList, meta: { title: 'Clientes' } },
         { path: 'clients/:id', name: 'ClientDetail', component: ClientDetail, meta: { title: 'Fiche cliente' } },

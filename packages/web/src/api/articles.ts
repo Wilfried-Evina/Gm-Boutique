@@ -73,5 +73,11 @@ export const articlesApi = {
   getExpired: async () => {
     const { data } = await apiClient.get<IArticle[]>('/articles/expired');
     return data;
+  },
+
+  // Alertes gérante : échéances dans le mois ou dépassées (issue #30)
+  getAlerts: async () => {
+    const { data } = await apiClient.get<IArticle[]>('/articles/alerts');
+    return data;
   }
 };
