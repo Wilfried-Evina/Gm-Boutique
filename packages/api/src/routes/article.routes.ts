@@ -10,6 +10,7 @@ router.post('/', articleController.create);
 router.get('/', articleController.getAll);
 router.get('/suggestions', articleController.getSuggestions);
 router.get('/expired', articleController.getExpired);
+router.get('/alerts', articleController.getAlerts);
 router.get('/scan/:barcode', articleController.getByBarcode);
 router.get('/:id', articleController.getById);
 router.get('/:id/barcode', articleController.getBarcodeImage);

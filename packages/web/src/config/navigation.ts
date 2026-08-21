@@ -38,7 +38,7 @@ export const navGroups: NavGroupData[] = [
   {
     items: [
       { id: 'dashboard', title: 'Tableau de bord', icon: LayoutDashboard, to: '/' },
-      { id: 'alertes', title: 'Alertes', icon: Bell, to: '/alertes', badge: 3 },
+      { id: 'alertes', title: 'Alertes', icon: Bell, to: '/alertes' },
     ],
   },
   {
