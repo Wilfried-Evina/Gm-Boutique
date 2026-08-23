@@ -83,7 +83,7 @@
   <!-- Hidden thermal receipt layout for printing -->
   <div id="printable-thermal-receipt" class="hidden" v-if="receipt && client">
     <div class="thermal-header">
-      <img src="/logo.png" style="width: 100%; max-width: 120px; margin: 0 auto 5px auto; display: block;" alt="GM BOUTIQUE" />
+      <img src="/logo.png" style="width: 100%; max-width: 120px; margin: 0 auto 5px auto; display: block;" alt="GMBoutique" />
       <p>Bon de {{ receipt.type === 'deposit' ? 'Dépôt' : 'Restitution' }}</p>
       <p>Réf: {{ receipt.referenceNumber }}</p>
       <p>{{ formatDate(receipt.createdAt) }}</p>

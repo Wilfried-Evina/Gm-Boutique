@@ -76,27 +76,27 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="max-w-5xl mx-auto">
-    <div class="mb-6">
-      <h1 class="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+  <div class="w-full">
+    <div class="mb-6 text-center">
+      <h1 class="text-2xl font-semibold tracking-tight text-foreground flex items-center justify-center gap-2">
         <Bell class="w-5 h-5" :stroke-width="1.75" /> Alertes
       </h1>
       <p class="text-sm text-muted-foreground mt-1">
-        Articles arrivant à échéance — anticiper les contacts et les baisses de prix.
+        Articles arrivant à échéance dans anticiper les contacts et les baisses de prix.
       </p>
     </div>
 
     <!-- Résumé -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center justify-center text-center">
         <p class="text-[13px] text-muted-foreground">Alertes actives</p>
         <p class="text-2xl font-semibold text-foreground mt-1">{{ alerts.length }}</p>
       </div>
-      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center justify-center text-center">
         <p class="text-[13px] text-muted-foreground">Récupérations à prévoir</p>
         <p class="text-2xl font-semibold text-amber-700 mt-1">{{ recuperations.length }}</p>
       </div>
-      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5">
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center justify-center text-center">
         <p class="text-[13px] text-muted-foreground">Baisses de prix à venir</p>
         <p class="text-2xl font-semibold text-blue-700 mt-1">{{ baisses.length }}</p>
       </div>
@@ -122,8 +122,8 @@ onMounted(load);
               <div class="min-w-0">
                 <p class="text-[14px] text-foreground">
                   L'article <strong>{{ a.brand }} · {{ a.type }}</strong> de la déposante
-                  <strong>{{ clientName(a) }}</strong> est en boutique depuis {{ inShopSince(a) }}.
-                  Elle doit venir le récupérer — <span :class="isOverdue(a) ? 'text-red-600 font-medium' : 'text-amber-700 font-medium'">échéance {{ deadlineLabel(a) }}</span>.
+                  <strong>{{ clientName(a) }}</strong> arrive bientôt à échéance.
+                  Elle doit venir le récupérer, <span :class="isOverdue(a) ? 'text-red-600 font-medium' : 'text-amber-700 font-medium'">échéance {{ deadlineLabel(a) }}</span>.
                 </p>
                 <div class="flex items-center gap-3 mt-2 text-[12px] text-muted-foreground">
                   <span class="inline-flex items-center gap-1"><Clock class="w-3.5 h-3.5" :stroke-width="1.75" /> {{ formatDate(deadlineOf(a)) }}</span>

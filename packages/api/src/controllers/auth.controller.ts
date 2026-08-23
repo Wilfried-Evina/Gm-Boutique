@@ -114,4 +114,71 @@ export const authController = {
       next(error);
     }
   },
+
+  async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ message: 'Email required' });
+      }
+
+      const user = await User.findOne({ email });
+      if (!user) {
+        // Pour des raisons de sécurité, on ne dit pas si l'utilisateur existe ou non
+        return res.json({ message: 'Si cette adresse email existe, un lien de réinitialisation a été envoyé.' });
+      }
+
+      const crypto = await import('crypto');
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 heure
+
+      await user.save();
+
+      const { env } = await import('../config/env');
+      const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+      const { mailService } = await import('../services/mail.service');
+      const targetEmail = user.role === 'admin' ? env.SMTP_USER : user.email;
+      await mailService.sendPasswordResetEmail(targetEmail, resetUrl);
+
+      res.json({ message: 'Si cette adresse email existe, un lien de réinitialisation a été envoyé.' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, newPassword } = req.body;
+      
+      if (!token || !newPassword) {
+        return res.status(400).json({ message: 'Token et nouveau mot de passe requis' });
+      }
+
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'Le mot de passe doit faire au moins 6 caractères' });
+      }
+
+      const user = await User.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpires: { $gt: new Date() }
+      });
+
+      if (!user) {
+        return res.status(400).json({ message: 'Le lien de réinitialisation est invalide ou a expiré' });
+      }
+
+      user.passwordHash = newPassword; // Will be hashed by pre-save hook
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+
+      await user.save();
+
+      res.json({ message: 'Mot de passe réinitialisé avec succès' });
+    } catch (error) {
+      next(error);
+    }
+  },
 };

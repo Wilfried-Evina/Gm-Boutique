@@ -54,14 +54,14 @@ async function loadCA() {
 
 async function loadAll() {
   try {
-    const [s, recentRes, exp] = await Promise.all([
+    const [s, recentRes, alertesRes] = await Promise.all([
       getDashboardStats().catch(() => null),
       articlesApi.getAll({ limit: 6 }).catch(() => ({ data: [] as IArticle[] } as any)),
-      articlesApi.getExpired().catch(() => [] as IArticle[]),
+      articlesApi.getAlerts().catch(() => [] as IArticle[]),
     ]);
     stats.value = s;
     recent.value = recentRes.data ?? [];
-    expired.value = exp;
+    expired.value = alertesRes;
   } catch {
     notify.error('Erreur lors du chargement du tableau de bord.');
   }
@@ -81,13 +81,13 @@ const chartSeries = computed(() => {
 });
 
 const chartOptions = computed(() => ({
-  chart: { type: 'area', toolbar: { show: false }, fontFamily: 'inherit', animations: { easing: 'easeinout', speed: 400 } },
+  chart: { type: 'area' as const, toolbar: { show: false }, fontFamily: 'inherit', animations: { easing: 'easeinout', speed: 400 } },
   colors: ['#0a0a0a', '#059669', '#d97706'],
   dataLabels: { enabled: false },
-  stroke: { curve: 'smooth', width: 2 },
+  stroke: { curve: 'smooth' as const, width: 2 },
   fill: { type: 'gradient', gradient: { opacityFrom: 0.15, opacityTo: 0.02 } },
   grid: { borderColor: '#e4e4e7', strokeDashArray: 4 },
-  legend: { position: 'top', horizontalAlign: 'right', markers: { radius: 12 } },
+  legend: { position: 'top' as const, horizontalAlign: 'right' as const },
   xaxis: {
     categories: ca.value?.series.map((p) => p.label) ?? [],
     labels: { style: { colors: '#71717a', fontSize: '11px' } },
@@ -182,7 +182,7 @@ const chartOptions = computed(() => ({
       </section>
 
       <!-- Alertes -->
-      <section class="bg-card rounded-xl border border-border/60 shadow-sm p-6">
+      <section class="bg-card rounded-xl border border-border/60 shadow-sm p-6 cursor-pointer hover:border-foreground/20 transition-all" @click="router.push('/alertes')">
         <h2 class="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
           <AlertTriangle class="w-4 h-4 text-amber-600" :stroke-width="1.75" /> Alertes
         </h2>
@@ -197,7 +197,7 @@ const chartOptions = computed(() => ({
         <div class="mt-3">
           <div class="flex items-center gap-2 mb-2 text-[13px] text-foreground">
             <Clock class="w-4 h-4 text-amber-600" :stroke-width="1.75" />
-            Articles à date butoir passée
+            Articles arrivant à échéance
             <span class="text-[12px] font-medium px-2 py-0.5 rounded-full ml-auto" :class="expired.length ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'">
               {{ expired.length }}
             </span>
@@ -206,14 +206,13 @@ const chartOptions = computed(() => ({
             <div
               v-for="a in expired.slice(0, 5)"
               :key="a._id"
-              class="flex items-center justify-between py-2 cursor-pointer hover:bg-black/[0.02] -mx-2 px-2 rounded-md transition-colors"
-              @click="router.push('/articles/expires')"
+              class="flex items-center justify-between py-2 -mx-2 px-2"
             >
               <span class="text-[12px] text-foreground truncate">{{ a.brand }} · {{ a.type }}</span>
               <span class="text-[11px] text-muted-foreground shrink-0 ml-3">{{ a.barcode }}</span>
             </div>
           </div>
-          <p v-else class="text-[12px] text-muted-foreground py-2">Aucun article en dépassement.</p>
+          <p v-else class="text-[12px] text-muted-foreground py-2">Aucun article arrivant à échéance.</p>
         </div>
       </section>
     </div>

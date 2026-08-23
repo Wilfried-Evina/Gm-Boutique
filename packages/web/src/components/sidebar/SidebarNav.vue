@@ -22,12 +22,12 @@ const router = useRouter();
 
     <!-- ===== LOGO HEADER ===== -->
     <div class="h-[72px] shrink-0 flex items-center px-5 gap-3 w-[260px]">
-      <img src="/logo.png" alt="GM Boutique" class="w-[48px] h-[48px] object-contain shrink-0" />
+      <img src="/logo.png" alt="GMBoutique" class="w-[48px] h-[48px] object-contain shrink-0" />
       <div 
         class="flex flex-col overflow-hidden whitespace-nowrap transition-opacity duration-700 ease-in-out pb-0.5"
         :class="expanded ? 'opacity-100' : 'opacity-0'"
       >
-        <span class="text-[18px] font-bold tracking-tight text-gray-900 leading-none">GM Boutique</span>
+        <span class="text-[18px] font-bold tracking-tight text-gray-900 leading-none">GMBoutique</span>
       </div>
     </div>
 

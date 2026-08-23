@@ -23,7 +23,7 @@
       <!-- Le code-barres n'est géré que depuis la page globale Articles -->
 
       <template #cell-clientId="{ row: item }">
-        {{ item.clientId.firstName }} {{ item.clientId.lastName }}
+        {{ (item.clientId as any).firstName }} {{ (item.clientId as any).lastName }}
       </template>
 
       <template #cell-price="{ row: item }">

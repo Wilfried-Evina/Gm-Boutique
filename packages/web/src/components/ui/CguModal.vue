@@ -1,5 +1,5 @@
 <template>
-  <Modal :open="open" title="Conditions Générales de GM Boutique" @update:open="$emit('update:open', $event)">
+  <Modal :open="open" title="Conditions Générales de GMBoutique" @update:open="$emit('update:open', $event)">
     <div class="space-y-4 text-sm text-gray-700 min-h-[300px] max-h-[60vh] overflow-y-auto">
       <div v-if="loading" class="flex justify-center items-center h-40">
         <span class="animate-spin w-6 h-6 border-2 border-black border-t-transparent rounded-full"></span>

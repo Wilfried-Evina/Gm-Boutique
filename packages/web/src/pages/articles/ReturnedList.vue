@@ -23,7 +23,7 @@
       <!-- Le code-barres n'est géré que depuis la page globale Articles -->
 
       <template #cell-clientId="{ row: item }">
-        {{ item.clientId.firstName }} {{ item.clientId.lastName }}
+        {{ (item.clientId as any).firstName }} {{ (item.clientId as any).lastName }}
       </template>
 
       <template #cell-price="{ row: item }">
@@ -36,7 +36,7 @@
       <template #cell-actions="{ row: item }">
         <div class="flex justify-end space-x-2">
           <!-- Action: Remettre en dépôt / en vente (erreur) -->
-          <button @click="articleStore.changeStatus(item._id, 'on_sale')" class="text-xs font-medium text-blue-600 hover:text-blue-900">Remettre en Vente</button>
+          <button @click="articleStore.changeStatus(item._id, 'on_sale' as any)" class="text-xs font-medium text-blue-600 hover:text-blue-900">Remettre en Vente</button>
         </div>
       </template>
     </DataTable>

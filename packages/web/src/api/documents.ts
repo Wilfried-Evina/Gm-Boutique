@@ -43,3 +43,16 @@ export function documentTypeLabel(type: IClientDocument['type']): string {
       return 'Document';
   }
 }
+
+/** Envoie un document par email */
+export async function sendDocumentEmail(documentId: string, email?: string): Promise<{ message: string; doc: IClientDocument }> {
+  const { data } = await apiClient.post(`/documents/${documentId}/send-email`, { email });
+  return data;
+}
+
+/** Envoie la fiche cliente récapitulative par email */
+export async function sendClientProfileEmail(clientId: string, email?: string): Promise<{ message: string }> {
+  const { data } = await apiClient.post(`/documents/client/${clientId}/send-profile-email`, { email });
+  return data;
+}
+

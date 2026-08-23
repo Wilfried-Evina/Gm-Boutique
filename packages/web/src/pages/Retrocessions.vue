@@ -163,8 +163,8 @@ onMounted(load);
       @row-click="(r) => router.push(`/clients/${r.clientId}`)"
     >
       <template #cell-clientName="{ row }">
-        <span class="font-medium text-foreground">{{ row.clientName }}</span>
-        <span class="block font-mono text-[11px] text-muted-foreground">{{ row.referenceNumber }}</span>
+        <span class="font-medium text-foreground">{{ row.referenceNumber || row.clientName }}</span>
+        <span class="block text-[11px] text-muted-foreground">{{ row.clientName }}</span>
       </template>
 
       <template #cell-totalRetrocessions="{ value }">{{ formatCHF(value) }}</template>

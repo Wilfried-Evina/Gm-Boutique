@@ -43,7 +43,7 @@ export const articleController = {
       // Check CGU
       if (!client.cguAccepted) {
         if (!data.cguAccepted) {
-          return res.status(400).json({ message: 'Les Conditions Générales de GM Boutique doivent être acceptées pour déposer un article.' });
+          return res.status(400).json({ message: 'Les Conditions Générales de GMBoutique doivent être acceptées pour déposer un article.' });
         } else {
           // Update client with CGU acceptance
           client.cguAccepted = true;

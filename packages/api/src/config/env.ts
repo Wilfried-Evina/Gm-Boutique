@@ -11,4 +11,12 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET || 'secret',
   ACCESS_TOKEN_EXPIRY: process.env.ACCESS_TOKEN_EXPIRY || '15m',
   REFRESH_TOKEN_EXPIRY: process.env.REFRESH_TOKEN_EXPIRY || '7d',
+  SMTP_HOST: process.env.SMTP_HOST || 'mail.infomaniak.com',
+  SMTP_PORT: parseInt(process.env.SMTP_PORT || '465', 10),
+  SMTP_SECURE: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
+  SMTP_USER: process.env.SMTP_USER || 'gmboutique@gestion-gmboutique.ch',
+  SMTP_PASS: process.env.SMTP_PASS || '',
+  SMTP_FROM: process.env.SMTP_FROM || 'GMBoutique <gmboutique@gestion-gmboutique.ch>',
+  FRONTEND_URL: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://app.gmboutique.ch' : 'http://localhost:5173'),
 };
+

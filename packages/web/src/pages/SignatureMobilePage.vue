@@ -24,7 +24,7 @@
         <h1 class="text-2xl font-bold text-gray-800">
           {{
             isFirstDeposit
-              ? "Bienvenue chez GM Boutique"
+              ? "Bienvenue chez GMBoutique"
               : isRetrocession
               ? "Quittance de Rétrocession (Espèces)"
               : "Validation de Dépôt"
@@ -46,7 +46,7 @@
         <div class="bg-gray-100 p-4 rounded text-xs text-gray-700 h-32 overflow-y-auto border border-gray-200">
           <p class="font-semibold mb-1">Conditions Générales d'Utilisation et de Dépôt-Vente :</p>
           <p class="mb-2">1. Les articles déposés restent la propriété du déposant jusqu'à leur vente.</p>
-          <p class="mb-2">2. Gm-Boutique fixe le prix de vente en accord avec le déposant et prélève une commission sur chaque vente selon le barème en vigueur.</p>
+          <p class="mb-2">2. GMBoutique fixe le prix de vente en accord avec le déposant et prélève une commission sur chaque vente selon le barème en vigueur.</p>
           <p class="mb-2">3. Les articles invendus doivent être récupérés à l'issue de la période contractuelle. À défaut, ils pourront être soldés ou donnés à une œuvre caritative.</p>
           <p>En signant, je confirme avoir lu et accepté l'intégralité de ces conditions.</p>
         </div>

@@ -174,7 +174,7 @@ export const retrocessionController = {
 
       // Générer le reçu PDF de rétrocession
       const receiptDoc = await pdfService.generateRetrocessionReceiptPDF(
-        client,
+        { ...client.toObject(), _id: client._id.toString() } as any,
         articlesToPay,
         paymentMethod,
         reference,

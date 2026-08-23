@@ -6,9 +6,9 @@ import { logger } from '../utils/logger';
 // 1. Demander une nouvelle session de signature (côté caisse)
 export const requestSignature = async (req: Request, res: Response) => {
   try {
-    const { signatureType } = req.body; // 'first_deposit' or 'standard'
+    const { signatureType } = req.body; // 'first_deposit', 'standard', 'retrocession', 'restitution'
     
-    if (!['first_deposit', 'standard'].includes(signatureType)) {
+    if (!['first_deposit', 'standard', 'retrocession', 'restitution'].includes(signatureType)) {
       return res.status(400).json({ message: "Type de signature invalide" });
     }
 

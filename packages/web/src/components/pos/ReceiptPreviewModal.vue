@@ -14,7 +14,7 @@
       <div class="flex-1 overflow-y-auto p-6 bg-gray-100/50 flex justify-center">
         <!-- Ticket Client Preview (Thermal size) -->
         <div class="bg-white p-6 shadow-md border border-gray-200 w-[80mm] min-h-[150mm] font-mono text-sm text-center flex flex-col items-center">
-          <img src="/logo.png" class="w-full max-w-[120px] mb-2 object-contain" alt="GM BOUTIQUE" />
+          <img src="/logo.png" class="w-full max-w-[120px] mb-2 object-contain" alt="GMBoutique" />
           <p class="mb-4 text-xs">Ticket de Caisse</p>
           
           <div class="w-full text-left text-xs mb-4">
@@ -197,7 +197,7 @@ const printReceipt = () => {
       <body>
         <div class="thermal-receipt">
           <div class="thermal-header">
-            <img src="${window.location.origin}/logo.png" style="width: 100%; max-width: 120px; margin: 0 auto 5px auto; display: block;" alt="GM BOUTIQUE" />
+            <img src="${window.location.origin}/logo.png" style="width: 100%; max-width: 120px; margin: 0 auto 5px auto; display: block;" alt="GMBoutique" />
             <p>Ticket de Caisse</p>
             <p>Réf: ${props.sale?.reference}</p>
             <p>${formattedDate.value}</p>

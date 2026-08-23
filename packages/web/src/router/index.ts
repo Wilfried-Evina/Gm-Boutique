@@ -51,6 +51,18 @@ const router = createRouter({
       meta: { requiresAuth: false },
     },
     {
+      path: '/forgot-password',
+      name: 'ForgotPassword',
+      component: () => import('../pages/ForgotPassword.vue'),
+      meta: { requiresAuth: false, title: 'Mot de passe oublié' },
+    },
+    {
+      path: '/reset-password',
+      name: 'ResetPassword',
+      component: () => import('../pages/ResetPassword.vue'),
+      meta: { requiresAuth: false, title: 'Nouveau mot de passe' },
+    },
+    {
       path: '/403',
       name: 'Forbidden',
       component: () => import('../pages/Forbidden.vue'),

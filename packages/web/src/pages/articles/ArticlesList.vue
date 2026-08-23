@@ -82,7 +82,7 @@
       </template>
 
       <template #cell-clientId="{ row: item }">
-        {{ item.clientId.firstName }} {{ item.clientId.lastName }}
+        {{ (item.clientId as any).firstName }} {{ (item.clientId as any).lastName }}
       </template>
 
       <template #cell-price="{ row: item }">
@@ -102,7 +102,7 @@
           <button v-if="['deposited', 'on_sale'].includes(item.status)" @click="openEditModal(item)" class="text-xs font-medium text-gray-600 hover:text-black">Modifier</button>
           
           <!-- Action: Mettre en vente (si déposé) -->
-          <button v-if="item.status === 'deposited'" @click="articleStore.changeStatus(item._id, 'on_sale')" class="text-xs font-medium text-blue-600 hover:text-blue-900">En Vente</button>
+          <button v-if="item.status === 'deposited'" @click="articleStore.changeStatus(item._id, 'on_sale' as any)" class="text-xs font-medium text-blue-600 hover:text-blue-900">En Vente</button>
           
           <!-- Action: Restituer (si en dépôt ou en vente) -->
           <button v-if="['deposited', 'on_sale'].includes(item.status)" @click="openRestitution(item)" class="text-xs font-medium text-orange-600 hover:text-orange-900" title="Restituer l'article">Restituer</button>

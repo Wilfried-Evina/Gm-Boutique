@@ -51,7 +51,7 @@ const onSubmit = handleSubmit(async (values) => {
 });
 
 // Animation Typographique de fond avec "Mouse Evasion"
-const word = "GM BOUTIQUE".replace(/\s/g, "").split("");
+const word = "GMBOUTIQUE".replace(/\s/g, "").split("");
 const letters = ref<Array<{
   id: number;
   char: string;
@@ -198,7 +198,7 @@ onUnmounted(() => {
       <div class="text-center mb-10">
         <!-- Logo officiel : se fond parfaitement dans le bg-white -->
         <div class="mx-auto w-40 h-40 mb-6 flex items-center justify-center relative">
-          <img :src="'/logo.png'" alt="GM Boutique Logo" class="w-full h-full object-contain relative z-10" @error="$event.target.style.display='none'" />
+          <img :src="'/logo.png'" alt="GMBoutique Logo" class="w-full h-full object-contain relative z-10" @error="($event.target as HTMLElement).style.display='none'" />
         </div>
         
         <h2 class="text-xl font-bold text-black tracking-[0.2em] uppercase">Espace Gestion</h2>
@@ -222,7 +222,10 @@ onUnmounted(() => {
         </div>
 
         <div>
-          <label for="password" class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Mot de passe</label>
+          <div class="flex justify-between items-center mb-2">
+            <label for="password" class="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mot de passe</label>
+            <router-link to="/forgot-password" class="text-[10px] font-bold text-black uppercase tracking-widest hover:underline cursor-pointer">Oublié ?</router-link>
+          </div>
           <input 
             id="password" 
             type="password" 

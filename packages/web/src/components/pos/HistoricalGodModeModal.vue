@@ -109,7 +109,7 @@
               </div>
             </div>
             <div class="mt-4 p-4 bg-gray-50 rounded-lg flex justify-between items-center border border-gray-200">
-              <span class="text-sm font-medium text-gray-600">Marge Nette GM Boutique calculée :</span>
+              <span class="text-sm font-medium text-gray-600">Marge Nette GMBoutique calculée :</span>
               <span class="text-xl font-black text-indigo-600">{{ gmGain.toFixed(2) }} CHF</span>
             </div>
           </div>
@@ -195,7 +195,7 @@ const close = () => {
 
 const submit = async () => {
   if (gmGain.value < 0) {
-    notifications.error('Le gain GM Boutique ne peut pas être négatif.');
+    notifications.error('Le gain GMBoutique ne peut pas être négatif.');
     return;
   }
 

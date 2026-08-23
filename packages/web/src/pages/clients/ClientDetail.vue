@@ -23,6 +23,8 @@ import {
   getClientDocuments,
   fetchDocumentBlob,
   documentTypeLabel,
+  sendDocumentEmail,
+  sendClientProfileEmail,
   type IClientDocument,
 } from '../../api/documents';
 import { markArticlePaid, markAllPaid } from '../../api/retrocessions';
@@ -85,7 +87,6 @@ const retroColumns: Column[] = [
   { key: 'finalSalePrice', label: 'Prix vente', align: 'right', sortable: true },
   { key: 'finalClientAmount', label: 'Montant cliente', align: 'right', sortable: true },
   { key: 'retrocessionPaid', label: 'Paiement', align: 'center', width: '150px' },
-  { key: 'actions', label: '', align: 'right', width: '150px' },
 ];
 
 const isMarkingPaid = ref(false);
@@ -185,7 +186,7 @@ function printRetroStatement() {
       @media print { body { padding:0; } }
     </style></head><body>
     <div class="head">
-      <div><h1>Relevé de rétrocession</h1><p class="muted">GM Boutique · ${formatDate(new Date())}</p></div>
+      <div><h1>Relevé de rétrocession</h1><p class="muted">GMBoutique · ${formatDate(new Date())}</p></div>
       <div style="text-align:right"><strong>${c.firstName} ${c.lastName}</strong><br /><span class="muted">${c.referenceNumber}</span></div>
     </div>
     <div class="sum">
@@ -232,7 +233,7 @@ async function load() {
     articles.value = a;
     retrocession.value = r;
     receipts.value = rcpts;
-    documents.value = docs;
+    documents.value = docs.filter(d => d.type !== 'client_profile');
   } catch {
     notify.error('Cliente introuvable.');
     router.push('/clients');
@@ -310,8 +311,10 @@ async function openClientProfilePreview() {
     pdfBlobUrl.value = window.URL.createObjectURL(blob);
     pdfFileName.value = `Fiche_Cliente_${doc.referenceNumber}.pdf`;
     pdfPreviewOpen.value = true;
-    // Rafraîchit la liste de l'onglet Documents pour y voir le nouveau PDF.
-    documents.value = await getClientDocuments(clientId.value).catch(() => documents.value);
+    // Rafraîchit la liste de l'onglet Documents pour y voir le nouveau PDF (sauf les fiches).
+    documents.value = await getClientDocuments(clientId.value)
+      .then(docs => docs.filter(d => d.type !== 'client_profile'))
+      .catch(() => documents.value);
   } catch (error) {
     notify.error('Erreur lors de la génération du PDF.');
   } finally {
@@ -353,6 +356,54 @@ async function downloadDocument(doc: IClientDocument) {
     window.URL.revokeObjectURL(url);
   } catch {
     notify.error('Erreur lors du téléchargement du document.');
+  }
+}
+
+const sendingEmailDocId = ref<string | null>(null);
+const isSendingProfileEmail = ref(false);
+
+async function handleSendDocumentEmail(doc: IClientDocument) {
+  let targetEmail = client.value?.email;
+  if (!targetEmail) {
+    const input = prompt("Cette cliente n'a pas d'email enregistré. Veuillez saisir l'adresse email destinataire :");
+    if (!input || !input.trim()) return;
+    targetEmail = input.trim();
+  }
+
+  sendingEmailDocId.value = doc._id;
+  try {
+    const res = await sendDocumentEmail(doc._id, targetEmail);
+    notify.success(`Document envoyé par email avec succès à ${targetEmail}`);
+    // Mettre à jour l'état local du document
+    const found = documents.value.find((d) => d._id === doc._id);
+    if (found) {
+      found.sentByEmail = true;
+      found.sentAt = new Date().toISOString();
+    }
+  } catch (error: any) {
+    notify.error(error.response?.data?.message || "Erreur lors de l'envoi de l'email.");
+  } finally {
+    sendingEmailDocId.value = null;
+  }
+}
+
+async function handleSendProfileEmail() {
+  if (isSendingProfileEmail.value) return;
+  let targetEmail = client.value?.email;
+  if (!targetEmail) {
+    const input = prompt("Cette cliente n'a pas d'email enregistré. Veuillez saisir l'adresse email destinataire :");
+    if (!input || !input.trim()) return;
+    targetEmail = input.trim();
+  }
+
+  isSendingProfileEmail.value = true;
+  try {
+    await sendClientProfileEmail(clientId.value, targetEmail);
+    notify.success(`Fiche déposante envoyée par email à ${targetEmail}`);
+  } catch (error: any) {
+    notify.error(error.response?.data?.message || "Erreur lors de l'envoi de l'email.");
+  } finally {
+    isSendingProfileEmail.value = false;
   }
 }
 
@@ -444,14 +495,6 @@ onUnmounted(() => {
             </span>
           </div>
         </div>
-
-        <!-- Affichage de la Signature enregistrée -->
-        <div v-if="client.signatureData" class="mt-6 pt-4 border-t border-border/60 flex flex-col gap-2">
-          <label class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Signature Électronique</label>
-          <div class="bg-gray-50 border border-border rounded-lg p-2 max-w-xs flex justify-center">
-            <img :src="client.signatureData" alt="Signature cliente" class="h-20 object-contain" />
-          </div>
-        </div>
       </div>
 
       <!-- Onglets -->
@@ -528,71 +571,7 @@ onUnmounted(() => {
       </div>
       <div v-else-if="activeTab === 'retrocessions'">
         <template v-if="retrocession && retrocession.totalArticlesSold > 0">
-          <!-- Résumé financier : Total à reverser mis en évidence -->
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-            <div class="lg:col-span-1 bg-primary text-primary-foreground rounded-2xl shadow-sm p-6 flex flex-col justify-center">
-              <p class="text-[13px] opacity-80">Total à reverser</p>
-              <p class="text-4xl font-bold tracking-tight mt-1">{{ formatCHF(retrocession.totalRetrocessions) }}</p>
-            </div>
-            <div class="lg:col-span-2 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-                <p class="text-[12px] text-muted-foreground">Déjà remboursé</p>
-                <p class="text-xl font-semibold text-emerald-700 mt-1">{{ formatCHF(retrocession.totalPaid) }}</p>
-              </div>
-              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-                <p class="text-[12px] text-muted-foreground">Restant à rembourser</p>
-                <p class="text-xl font-semibold mt-1" :class="retrocession.remainingToPay > 0 ? 'text-amber-700' : 'text-emerald-700'">
-                  {{ formatCHF(retrocession.remainingToPay) }}
-                </p>
-              </div>
-              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-                <p class="text-[12px] text-muted-foreground">Chiffre d'affaires</p>
-                <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalSales) }}</p>
-              </div>
-              <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
-                <p class="text-[12px] text-muted-foreground">Gains commerce</p>
-                <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.storeEarnings) }}</p>
-              </div>
-            </div>
-          </div>
 
-          <!-- Barre d'actions : filtre période + impression + tout marquer -->
-          <div class="flex items-end justify-between gap-4 flex-wrap mb-4">
-            <div class="flex items-end gap-2">
-              <div class="flex flex-col gap-1">
-                <label class="text-[11px] font-medium text-muted-foreground">Du</label>
-                <input v-model="retroFrom" type="date" class="h-9 px-2.5 bg-card border border-border rounded-md text-[13px] outline-none focus:ring-1 focus:ring-foreground/20" />
-              </div>
-              <div class="flex flex-col gap-1">
-                <label class="text-[11px] font-medium text-muted-foreground">Au</label>
-                <input v-model="retroTo" type="date" class="h-9 px-2.5 bg-card border border-border rounded-md text-[13px] outline-none focus:ring-1 focus:ring-foreground/20" />
-              </div>
-              <button
-                v-if="retroFrom || retroTo"
-                class="h-9 px-2.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
-                @click="resetRetroFilter"
-              >
-                Réinitialiser
-              </button>
-            </div>
-            <div class="flex items-center gap-2">
-              <button
-                class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
-                @click="printRetroStatement"
-              >
-                <Printer class="w-4 h-4" :stroke-width="1.75" />
-                Imprimer le relevé
-              </button>
-              <button
-                v-if="retrocession.remainingToPay > 0"
-                class="h-9 px-3 bg-primary text-primary-foreground rounded-md text-[13px] font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                :disabled="isMarkingPaid"
-                @click="handleMarkAllPaid"
-              >
-                Tout marquer remboursé
-              </button>
-            </div>
-          </div>
 
           <!-- Détail par article -->
           <DataTable :columns="retroColumns" :rows="retroItemsView" row-key="articleId" empty-text="Aucun article vendu sur cette période.">
@@ -616,20 +595,10 @@ onUnmounted(() => {
                 ✅ Remboursé
               </span>
               <span v-else class="inline-flex items-center gap-1 h-6 px-2.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700">
-                ⏳ En attente
+                En attente
               </span>
             </template>
-            <template #cell-actions="{ row }">
-              <button
-                v-if="!row.retrocessionPaid"
-                class="h-8 px-2.5 border border-border rounded-md text-[12px] font-medium hover:bg-black/[0.03] disabled:opacity-50 transition-colors"
-                :disabled="isMarkingPaid"
-                @click="handleMarkPaid(row.articleId)"
-              >
-                Marquer remboursé
-              </button>
-              <span v-else class="text-muted-foreground/50 text-[12px]">—</span>
-            </template>
+
           </DataTable>
         </template>
         <div v-else class="text-muted-foreground text-sm py-10 text-center bg-card rounded-xl border border-border/60">
@@ -685,7 +654,17 @@ onUnmounted(() => {
 
       <!-- Onglet Documents -->
       <div v-else-if="activeTab === 'documents'">
-        <div class="flex items-center justify-end mb-4">
+        <div class="flex items-center justify-end gap-2 mb-4">
+          <button
+            class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors disabled:opacity-60"
+            @click="handleSendProfileEmail"
+            :disabled="isSendingProfileEmail"
+            title="Envoyer la fiche déposante complète par email à la cliente"
+          >
+            <Mail class="w-4 h-4" :stroke-width="1.75" />
+            {{ isSendingProfileEmail ? 'Envoi en cours…' : 'Envoyer la fiche par email' }}
+          </button>
+
           <button
             class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors disabled:opacity-60"
             @click="openClientProfilePreview"
@@ -748,12 +727,13 @@ onUnmounted(() => {
                 <Download class="w-4 h-4" :stroke-width="1.75" />
               </button>
               <button
-                class="p-1.5 rounded-md text-muted-foreground/40 cursor-not-allowed"
-                title="Envoi par email — disponible après l'endpoint email (#22)"
+                class="p-1.5 rounded-md text-muted-foreground/70 hover:bg-black/5 hover:text-foreground transition-colors disabled:opacity-50"
+                :title="row.sentByEmail ? 'Renvoyer par email' : 'Envoyer par email'"
                 aria-label="Envoyer par email"
-                disabled
+                :disabled="sendingEmailDocId === row._id"
+                @click="handleSendDocumentEmail(row)"
               >
-                <Mail class="w-4 h-4" :stroke-width="1.75" />
+                <Mail class="w-4 h-4" :stroke-width="1.75" :class="{ 'animate-pulse text-primary': sendingEmailDocId === row._id }" />
               </button>
             </div>
           </template>

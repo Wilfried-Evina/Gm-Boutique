@@ -53,7 +53,7 @@ function print() {
       frame.contentWindow?.focus();
       frame.contentWindow?.print();
     } catch {
-      window.open(props.blobUrl, '_blank');
+      if (props.blobUrl) window.open(props.blobUrl, '_blank');
     }
     setTimeout(() => frame.remove(), 60_000);
   };

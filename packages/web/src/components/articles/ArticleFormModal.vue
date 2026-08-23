@@ -100,31 +100,31 @@
         <div v-if="hasReduction" class="bg-white p-4 rounded-md border border-gray-200 space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700">Date butoir</label>
-            <input type="date" v-model="form.priceReduction.deadlineDate" :required="hasReduction" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" />
+            <input type="date" v-model="form.priceReduction!.deadlineDate" :required="hasReduction" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" />
           </div>
 
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Action à l'expiration</label>
             <div class="flex space-x-4">
               <label class="inline-flex items-center">
-                <input type="radio" v-model="form.priceReduction.actionOnExpiry" value="reduce_price" class="text-black focus:ring-black border-gray-300" name="action_type">
+                <input type="radio" v-model="form.priceReduction!.actionOnExpiry" value="reduce_price" class="text-black focus:ring-black border-gray-300" name="action_type">
                 <span class="ml-2 text-sm text-gray-700">Baisser les prix</span>
               </label>
               <label class="inline-flex items-center">
-                <input type="radio" v-model="form.priceReduction.actionOnExpiry" value="return_to_client" class="text-black focus:ring-black border-gray-300" name="action_type">
+                <input type="radio" v-model="form.priceReduction!.actionOnExpiry" value="return_to_client" class="text-black focus:ring-black border-gray-300" name="action_type">
                 <span class="ml-2 text-sm text-gray-700">Restituer à la cliente</span>
               </label>
             </div>
           </div>
 
-          <div v-if="form.priceReduction.actionOnExpiry === 'reduce_price'" class="grid grid-cols-2 gap-4">
+          <div v-if="form.priceReduction!.actionOnExpiry === 'reduce_price'" class="grid grid-cols-2 gap-4">
              <div>
               <label class="block text-sm font-medium text-gray-700">Nouveau Gain Cliente</label>
-              <input type="number" step="0.01" min="0" v-model="form.priceReduction.reducedClientPrice" :required="form.priceReduction.actionOnExpiry === 'reduce_price'" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" />
+              <input type="number" step="0.01" min="0" v-model="form.priceReduction!.reducedClientPrice" :required="form.priceReduction!.actionOnExpiry === 'reduce_price'" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" />
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700">Nouveau Prix Boutique</label>
-              <input type="number" step="0.01" min="0" v-model="form.priceReduction.reducedPublicPrice" :required="form.priceReduction.actionOnExpiry === 'reduce_price'" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" />
+              <input type="number" step="0.01" min="0" v-model="form.priceReduction!.reducedPublicPrice" :required="form.priceReduction!.actionOnExpiry === 'reduce_price'" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" />
             </div>
           </div>
         </div>
@@ -386,7 +386,7 @@ const submit = async (closeAfter: boolean = true) => {
   } catch (err) {
     if (err instanceof z.ZodError) {
       const fieldErrors: Record<string, string> = {};
-      err.errors.forEach(e => {
+      (err as any).errors.forEach((e: any) => {
         if (e.path[0]) fieldErrors[e.path[0].toString()] = e.message;
       });
       errors.value = fieldErrors;

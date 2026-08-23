@@ -1,5 +1,5 @@
 import { ArticleStatus, ActionOnExpiry } from './enums';
-import { IClient } from './client';
+import type { IClient } from './client';
 
 export interface IPriceReduction {
   deadlineDate: string | Date;

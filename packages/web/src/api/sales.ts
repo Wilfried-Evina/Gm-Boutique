@@ -20,5 +20,14 @@ export const salesApi = {
       endDate
     });
     return response.data;
+  },
+  generateSalesReportCSV: async (startDate: Date, endDate: Date) => {
+    const response = await apiClient.post('/documents/generate/sales-report-csv', {
+      startDate,
+      endDate
+    }, {
+      responseType: 'blob'
+    });
+    return response.data;
   }
 };

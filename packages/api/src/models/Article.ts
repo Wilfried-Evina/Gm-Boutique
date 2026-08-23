@@ -5,6 +5,10 @@ export interface IArticleDocument extends Omit<IArticle, '_id' | 'createdAt' | '
   clientId: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  retrocessionPaidAt?: Date;
+  retrocessionPaymentMethod?: string;
+  retrocessionReference?: string;
+  retrocessionReceiptId?: mongoose.Types.ObjectId;
 }
 
 const articleSchema = new Schema<IArticleDocument>(
@@ -42,7 +46,7 @@ const articleSchema = new Schema<IArticleDocument>(
 );
 
 // Indexes
-articleSchema.index({ barcode: 1 });
+
 articleSchema.index({ clientId: 1 });
 articleSchema.index({ status: 1 });
 

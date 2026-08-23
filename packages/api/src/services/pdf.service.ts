@@ -103,10 +103,10 @@ export const pdfService = {
           let tableY = doc.y;
           doc.fontSize(10).font('Helvetica-Bold');
           doc.text('Code', 50, tableY);
-          doc.text('Marque', 120, tableY);
-          doc.text('Type', 250, tableY);
-          doc.text('Statut', 380, tableY);
-          doc.text('Gain', 480, tableY);
+          doc.text('Marque', 145, tableY);
+          doc.text('Type', 245, tableY);
+          doc.text('Statut', 370, tableY);
+          doc.text('Gain', 460, tableY);
           
           let currentListY = tableY + 20;
           doc.font('Helvetica');
@@ -126,10 +126,10 @@ export const pdfService = {
               // Redraw headers on new page
               doc.fontSize(10).font('Helvetica-Bold');
               doc.text('Code', 50, currentListY);
-              doc.text('Marque', 120, currentListY);
-              doc.text('Type', 250, currentListY);
-              doc.text('Statut', 380, currentListY);
-              doc.text('Gain', 480, currentListY);
+              doc.text('Marque', 145, currentListY);
+              doc.text('Type', 245, currentListY);
+              doc.text('Statut', 370, currentListY);
+              doc.text('Gain', 460, currentListY);
               currentListY += 20;
               doc.font('Helvetica');
             }
@@ -143,11 +143,15 @@ export const pdfService = {
               }
             }
 
-            doc.text(article.barcode || '-', 50, currentListY);
-            doc.text(article.brand || '-', 120, currentListY);
-            doc.text(article.type || '-', 250, currentListY);
-            doc.text(displayStatus, 380, currentListY);
-            doc.text(`${article.clientPrice.toFixed(2)} CHF`, 480, currentListY);
+            const safeCode = (article.barcode || '-').substring(0, 16);
+            const safeBrand = (article.brand || '-').substring(0, 18);
+            const safeType = (article.type || '-').substring(0, 20);
+
+            doc.text(safeCode, 50, currentListY);
+            doc.text(safeBrand, 145, currentListY);
+            doc.text(safeType, 245, currentListY);
+            doc.text(displayStatus, 370, currentListY);
+            doc.text(`${article.clientPrice.toFixed(2)} CHF`, 460, currentListY);
             
             currentListY += 20;
           }
@@ -284,7 +288,7 @@ export const pdfService = {
             totalClientGain += clientGain;
             totalBoutiqueGain += boutiqueGain;
             
-            const clientName = article.clientId ? `${article.clientId.firstName} ${article.clientId.lastName}`.substring(0, 15) : 'Inconnu';
+            const clientName = article.clientId ? (article.clientId.referenceNumber || 'Inconnu') : 'Inconnu';
             const articleName = `${article.brand} ${article.type}`.substring(0, 20);
 
             doc.text(saleDateStr, 50, currentListY);
@@ -339,7 +343,7 @@ export const pdfService = {
             }
             
             const retDateStr = new Intl.DateTimeFormat('fr-CH', { dateStyle: 'short' }).format(new Date(article.updatedAt));
-            const clientName = article.clientId ? `${article.clientId.firstName} ${article.clientId.lastName}` : 'Inconnu';
+            const clientName = article.clientId ? (article.clientId.referenceNumber || 'Inconnu') : 'Inconnu';
             const articleName = `${article.brand} ${article.type}`;
             
             doc.text(retDateStr, 50, retListY);
@@ -354,7 +358,7 @@ export const pdfService = {
 
         // Footer
         doc.fontSize(9).fillColor('#999999').text(
-          'GM Boutique - Rapport Comptable Interne',
+          'GMBoutique - Rapport Comptable Interne',
           50,
           750,
           { align: 'center' }
@@ -473,7 +477,8 @@ export const pdfService = {
           totalCalculated += clientAmount;
 
           const articleName = `${a.brand || ''} ${a.type || ''}`.trim() || 'Article';
-          const saleDateStr = a.updatedAt || a.saleDate ? new Intl.DateTimeFormat('fr-CH').format(new Date(a.updatedAt || a.saleDate)) : '-';
+          const dt = a.updatedAt || (a as any).saleDate;
+          const saleDateStr = dt ? new Intl.DateTimeFormat('fr-CH').format(new Date(dt)) : '-';
 
           doc.text(a.barcode || '-', 60, currentY);
           doc.text(articleName, 170, currentY, { width: 180, lineBreak: false });
@@ -502,7 +507,7 @@ export const pdfService = {
 
         doc.fillColor('#71717A').fontSize(8).font('Helvetica');
         doc.text(
-          'Ce document constitue une quittance officielle de versement de rétrocession émise par GM Boutique. Il atteste du bon règlement des gains dus pour les articles vendus indiqués ci-dessus.',
+          'Ce document constitue une quittance officielle de versement de rétrocession émise par GMBoutique. Il atteste du bon règlement des gains dus pour les articles vendus indiqués ci-dessus.',
           50,
           footerBlockY,
           { width: 495, align: 'justify' }

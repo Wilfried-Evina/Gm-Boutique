@@ -16,23 +16,41 @@ import { startCronJobs } from './services/cron.service';
 
 import { User } from './models/User';
 
-// Connect to Database and seed
-connectDB().then(async () => {
-  const exists = await User.findOne({ email: 'gerante@gm-boutique.ch' });
-  if (!exists) {
-    await User.create({
-      email: 'gerante@gm-boutique.ch',
-      passwordHash: 'Password123!',
-      role: 'admin',
-      firstName: 'Edima',
-      lastName: 'Evina'
-    });
-    logger.info('✅ Compte administrateur temporaire créé (gerante@gm-boutique.ch / Password123!)');
-  }
-});
+// Connect to Database and seed (not in test mode)
+if (env.NODE_ENV !== 'test') {
+  connectDB().then(async () => {
+    const admin1Email = 'gerante@gm-boutique.ch';
+    const admin2Email = 'gmboutique@gestion-gmboutique.ch';
+    const securePassword = 'Js1c@Hal9Pv7NJdFjzJNapT7!X9';
 
-// Start Background Jobs
-startCronJobs();
+    const exists1 = await User.findOne({ email: admin1Email });
+    if (!exists1) {
+      await User.create({
+        email: admin1Email,
+        passwordHash: securePassword,
+        role: 'admin',
+        firstName: 'Edima',
+        lastName: 'Evina'
+      });
+      logger.info(`✅ Premier administrateur créé (${admin1Email})`);
+    }
+
+    const exists2 = await User.findOne({ email: admin2Email });
+    if (!exists2) {
+      await User.create({
+        email: admin2Email,
+        passwordHash: 'AKhPTqxxzuUh11M6fOC$iPAm@B7',
+        role: 'admin',
+        firstName: 'Admin',
+        lastName: 'Système'
+      });
+      logger.info(`✅ Second administrateur créé (${admin2Email})`);
+    }
+  });
+
+  // Start Background Jobs
+  startCronJobs();
+}
 
 const app = express();
 
@@ -52,10 +70,11 @@ app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
     // Autoriser localhost ET les IP du réseau local (192.168.x.x, 10.x.x.x)
-    const allowed = !origin
-      || origin.includes('localhost')
-      || origin.includes('127.0.0.1')
-      || /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
+      const allowed = !origin
+        || origin.includes('localhost')
+        || origin.includes('127.0.0.1')
+        || origin === env.FRONTEND_URL
+        || /^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
     callback(null, allowed ? origin : false);
   },
   credentials: true
@@ -133,6 +152,10 @@ app.get('/api/network-info', (req, res) => {
 // Error Handler Middleware
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
-  logger.info(`Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
-});
+if (env.NODE_ENV !== 'test') {
+  app.listen(env.PORT, () => {
+    logger.info(`Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
+  });
+}
+
+export default app;

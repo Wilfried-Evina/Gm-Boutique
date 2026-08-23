@@ -2,9 +2,10 @@ import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
 import { IUser, UserRole } from '@gm-boutique/shared';
 
-// Extend IUser but omit _id since Document provides it, and we add methods
 export interface IUserDocument extends Omit<IUser, '_id' | 'createdAt' | 'updatedAt'>, Document {
   passwordHash: string;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
   createdAt: Date;
   updatedAt: Date;
@@ -17,6 +18,8 @@ const userSchema = new Schema<IUserDocument>(
     firstName: { type: String, required: true, trim: true },
     lastName: { type: String, required: true, trim: true },
     role: { type: String, enum: Object.values(UserRole), default: UserRole.GERANTE },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date }
   },
   { timestamps: true }
 );
