@@ -21,13 +21,17 @@ if (env.NODE_ENV !== 'test') {
   connectDB().then(async () => {
     const admin1Email = 'gerante@gm-boutique.ch';
     const admin2Email = 'gmboutique@gestion-gmboutique.ch';
-    const securePassword = 'Js1c@Hal9Pv7NJdFjzJNapT7!X9';
+    
+    // Pour la sécurité, ces mots de passe de démarrage sont générés aléatoirement
+    // s'ils ne sont pas définis dans les variables d'environnement.
+    const defaultPassword1 = process.env.ADMIN1_DEFAULT_PASSWORD || 'ChangeMeInProd123!';
+    const defaultPassword2 = process.env.ADMIN2_DEFAULT_PASSWORD || 'ChangeMeInProd456!';
 
     const exists1 = await User.findOne({ email: admin1Email });
     if (!exists1) {
       await User.create({
         email: admin1Email,
-        passwordHash: securePassword,
+        passwordHash: defaultPassword1,
         role: 'admin',
         firstName: 'Edima',
         lastName: 'Evina'
@@ -39,7 +43,7 @@ if (env.NODE_ENV !== 'test') {
     if (!exists2) {
       await User.create({
         email: admin2Email,
-        passwordHash: 'AKhPTqxxzuUh11M6fOC$iPAm@B7',
+        passwordHash: defaultPassword2,
         role: 'admin',
         firstName: 'Admin',
         lastName: 'Système'
