@@ -1,0 +1,1 @@
+import{m as e}from"./index-qNMFyIVY.js";async function t(t){return(await e.post(`/receipts`,t)).data}async function n(t){return(await e.get(`/receipts/client/${t}`)).data}export{n,t};

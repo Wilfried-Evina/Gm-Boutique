@@ -41,27 +41,7 @@
         </p>
       </div>
 
-      <!-- CGU (Uniquement pour le premier dépôt) -->
-      <div v-if="isFirstDeposit" class="flex flex-col gap-4">
-        <div class="bg-gray-100 p-4 rounded text-xs text-gray-700 h-32 overflow-y-auto border border-gray-200">
-          <p class="font-semibold mb-1">Conditions Générales d'Utilisation et de Dépôt-Vente :</p>
-          <p class="mb-2">1. Les articles déposés restent la propriété du déposant jusqu'à leur vente.</p>
-          <p class="mb-2">2. GMBoutique fixe le prix de vente en accord avec le déposant et prélève une commission sur chaque vente selon le barème en vigueur.</p>
-          <p class="mb-2">3. Les articles invendus doivent être récupérés à l'issue de la période contractuelle. À défaut, ils pourront être soldés ou donnés à une œuvre caritative.</p>
-          <p>En signant, je confirme avoir lu et accepté l'intégralité de ces conditions.</p>
-        </div>
-        
-        <label class="flex items-start gap-3 cursor-pointer p-2 border rounded hover:bg-gray-50">
-          <input 
-            type="checkbox" 
-            v-model="cguAccepted" 
-            class="mt-1 w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-          >
-          <span class="text-sm font-medium text-gray-700 select-none">
-            J'ai lu et j'accepte les Conditions Générales d'Utilisation
-          </span>
-        </label>
-      </div>
+
 
       <!-- Zone de signature -->
       <div class="flex flex-col gap-2">
@@ -80,7 +60,7 @@
       <!-- Bouton Valider -->
       <button 
         @click="submitSignature"
-        :disabled="isSubmitting || (isFirstDeposit && !cguAccepted)"
+        :disabled="isSubmitting"
         class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
       >
         <span v-if="isSubmitting" class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
@@ -166,10 +146,6 @@ const submitSignature = async () => {
     return;
   }
 
-  if (isFirstDeposit.value && !cguAccepted.value) {
-    alert("Veuillez accepter les CGU.");
-    return;
-  }
 
   isSubmitting.value = true;
   error.value = '';
@@ -179,7 +155,7 @@ const submitSignature = async () => {
   try {
     await apiClient.post(`/signatures/${token}/submit`, {
       signatureBase64: base64Signature,
-      cguAccepted: cguAccepted.value
+      cguAccepted: true
     });
     
     success.value = true;

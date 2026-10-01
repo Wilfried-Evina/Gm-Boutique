@@ -15,7 +15,10 @@ import StatusBadge from '../../components/ui/StatusBadge.vue';
 import ClientFormModal from '../../components/clients/ClientFormModal.vue';
 import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
 import ReceiptModal from '../../components/clients/ReceiptModal.vue';
+import DigitalizationModal from '../../components/clients/DigitalizationModal.vue';
+import BarcodePreviewModal from '../../components/articles/BarcodePreviewModal.vue';
 import PdfPreviewModal from '../../components/ui/PdfPreviewModal.vue';
+import ArticleFormModal from '../../components/articles/ArticleFormModal.vue';
 import { createReceipt, getClientReceipts, type IReceipt } from '../../api/receipts';
 import { updateClient, generateClientProfilePDF } from '../../api/clients';
 import { apiClient } from '../../api/client';
@@ -39,9 +42,27 @@ const retrocession = ref<IRetrocessionSummary | null>(null);
 const receipts = ref<IReceipt[]>([]);
 const documents = ref<IClientDocument[]>([]);
 const loading = ref(true);
+
+const depositedArticleIds = computed(() => {
+  const ids = new Set<string>();
+  receipts.value.filter(r => r.type === 'deposit').forEach(r => {
+    r.articleIds.forEach((a: any) => ids.add(a._id || a));
+  });
+  return ids;
+});
+
+const restitutedArticleIds = computed(() => {
+  const ids = new Set<string>();
+  receipts.value.filter(r => r.type === 'restitution').forEach(r => {
+    r.articleIds.forEach((a: any) => ids.add(a._id || a));
+  });
+  return ids;
+});
+
 const isGeneratingPdf = ref(false);
 const activeTab = ref<'articles' | 'retrocessions' | 'receipts' | 'documents'>('articles');
 const formOpen = ref(false);
+const digitalizationModalOpen = ref(false);
 
 const selectedArticles = ref<string[]>([]);
 const signatureModalOpen = ref(false);
@@ -79,6 +100,7 @@ const articleColumns: Column[] = [
   { key: 'clientPrice', label: 'Gain (CHF)', align: 'right', sortable: true },
   { key: 'status', label: 'Statut', align: 'center' },
   { key: 'createdAt', label: 'Déposé le', width: '120px', sortable: true },
+  { key: 'article_actions', label: '', align: 'right' as const },
 ];
 
 const retroColumns: Column[] = [
@@ -257,6 +279,30 @@ function generateReceipt(type: 'deposit' | 'restitution') {
     notify.error("Veuillez sélectionner au moins un article.");
     return;
   }
+
+  if (type === 'deposit') {
+    const hasHistorical = selectedArticles.value.some(id => {
+      const a = articles.value.find(art => art._id === id);
+      return a && a.isHistorical;
+    });
+    if (hasHistorical) {
+      notify.error("Les articles issus d'une digitalisation historique ne peuvent pas faire l'objet d'un bon de dépôt.");
+      return;
+    }
+
+    const alreadyDeposited = selectedArticles.value.some(id => depositedArticleIds.value.has(id));
+    if (alreadyDeposited) {
+      notify.error("Certains articles sélectionnés ont déjà fait l'objet d'un bon de dépôt.");
+      return;
+    }
+  } else if (type === 'restitution') {
+    const alreadyRestituted = selectedArticles.value.some(id => restitutedArticleIds.value.has(id));
+    if (alreadyRestituted) {
+      notify.error("Certains articles sélectionnés ont déjà fait l'objet d'un bon de restitution.");
+      return;
+    }
+  }
+
   signatureType.value = 'standard';
   pendingReceiptType.value = type;
   signatureModalOpen.value = true;
@@ -412,6 +458,30 @@ onMounted(load);
 onUnmounted(() => {
   if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
 });
+
+const isBarcodeModalOpen = ref(false);
+const selectedBarcode = ref<string | null>(null);
+const selectedArticleForBarcode = ref<any>(null);
+
+const openBarcode = (item: any) => {
+  selectedBarcode.value = item.barcode;
+  selectedArticleForBarcode.value = item;
+  isBarcodeModalOpen.value = true;
+};
+
+const isEditArticleModalOpen = ref(false);
+const articleToEdit = ref<any>(null);
+
+const openEditArticle = (item: any) => {
+  articleToEdit.value = item;
+  isEditArticleModalOpen.value = true;
+};
+
+const onArticleEdited = () => {
+  isEditArticleModalOpen.value = false;
+  articleToEdit.value = null;
+  load();
+};
 </script>
 
 <template>
@@ -451,12 +521,13 @@ onUnmounted(() => {
             {{ isGeneratingPdf ? 'Génération...' : 'Fiche PDF' }}
           </button>
           <button
-            v-if="!client.cguAccepted"
-            class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-            @click="openCguSignature"
+            v-if="client.isDigitalized"
+            class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+            @click="digitalizationModalOpen = true"
           >
-            Faire signer les CGU
+            Digitaliser une fiche
           </button>
+
           <button
             class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
             @click="formOpen = true"
@@ -552,8 +623,15 @@ onUnmounted(() => {
           selectable
           v-model:selected="selectedArticles"
         >
-          <template #cell-barcode="{ value }">
-            <span class="font-mono text-[12px] text-foreground">{{ value }}</span>
+          <template #cell-barcode="{ row: item }">
+            <div class="flex items-center font-mono text-[12px] text-foreground">
+              {{ item.barcode }}
+              <button @click="openBarcode(item)" class="ml-2 text-muted-foreground hover:text-foreground" title="Voir code-barres">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+                </svg>
+              </button>
+            </div>
           </template>
           <template #cell-brand="{ value }">
             <span class="font-medium text-foreground">{{ value }}</span>
@@ -566,6 +644,17 @@ onUnmounted(() => {
           </template>
           <template #cell-createdAt="{ value }">
             <span class="text-muted-foreground">{{ formatDate(value) }}</span>
+          </template>
+          <template #cell-article_actions="{ row: item }">
+            <div class="flex justify-end">
+              <button
+                v-if="['deposited', 'on_sale'].includes(item.status) || item.isHistorical"
+                @click="openEditArticle(item)"
+                class="text-xs font-medium text-gray-500 hover:text-black border border-gray-200 rounded px-2 py-1 hover:border-gray-400 transition-colors"
+              >
+                Modifier
+              </button>
+            </div>
           </template>
         </DataTable>
       </div>
@@ -643,7 +732,8 @@ onUnmounted(() => {
               <span class="font-medium">{{ receipt.articleIds.length }}</span> article(s)
             </div>
             <div class="mt-2 pt-2 border-t border-border/60">
-              <img :src="receipt.signatureData" class="h-10 object-contain mix-blend-multiply" />
+              <img v-if="receipt.signatureData.startsWith('data:')" :src="receipt.signatureData" class="h-10 object-contain mix-blend-multiply" />
+              <div v-else class="text-[10px] text-muted-foreground italic h-10 flex items-center">{{ receipt.signatureData }}</div>
             </div>
           </div>
           <div v-if="!receipts.length" class="col-span-full text-center py-10 text-muted-foreground text-sm border border-dashed border-border/60 rounded-xl">
@@ -763,5 +853,25 @@ onUnmounted(() => {
         @update:open="(v: boolean) => { if (!v) onPreviewClose(); }"
       />
     </template>
+
+    <DigitalizationModal
+      :open="digitalizationModalOpen"
+      :client-id="clientId"
+      @update:open="digitalizationModalOpen = $event"
+      @success="load"
+    />
+    <BarcodePreviewModal 
+      :is-open="isBarcodeModalOpen" 
+      :barcode="selectedBarcode" 
+      :article="selectedArticleForBarcode"
+      @close="isBarcodeModalOpen = false" 
+    />
+    <ArticleFormModal
+      :is-open="isEditArticleModalOpen"
+      :article-to-edit="articleToEdit"
+      @close="isEditArticleModalOpen = false; articleToEdit = null"
+      @saved="onArticleEdited"
+    />
   </div>
 </template>
+

@@ -9,6 +9,7 @@ export interface IClient {
   cguAccepted: boolean;
   cguAcceptedAt?: string | Date;
   signatureData?: string; // base64 string
+  isDigitalized?: boolean;
   createdAt: string | Date;
   updatedAt: string | Date;
 }
@@ -21,6 +22,7 @@ export interface CreateClientDTO {
   address?: string;
   cguAccepted: boolean;
   signatureData?: string;
+  isDigitalized?: boolean;
 }
 
 export interface UpdateClientDTO extends Partial<CreateClientDTO> {}

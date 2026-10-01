@@ -18,6 +18,7 @@ const clientSchema = new Schema<IClientDocument>(
     cguAccepted: { type: Boolean, default: false },
     cguAcceptedAt: { type: Date },
     signatureData: { type: String },
+    isDigitalized: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

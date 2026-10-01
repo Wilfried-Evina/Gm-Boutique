@@ -78,8 +78,8 @@ function openEdit(client: IClient) {
 
 function onSaved(client: IClient) {
   load();
-  // Si c'est une nouvelle cliente (pas un edit), on ouvre la modale de signature avec CGU
-  if (!editing.value) {
+  // Si c'est une nouvelle cliente (pas un edit) et qu'elle n'est pas "historique/digitalisée", on ouvre la modale de signature
+  if (!editing.value && !client.isDigitalized) {
     newlyCreatedClient.value = client;
     signatureModalOpen.value = true;
   }

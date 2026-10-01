@@ -20,13 +20,18 @@ const props = withDefaults(
     clickableRows?: boolean;
     selectable?: boolean;
     selected?: string[];
+    // Pagination serveur
+    total?: number;
+    page?: number;
+    limit?: number;
   }>(),
-  { loading: false, rowKey: '_id', emptyText: 'Aucun résultat.', clickableRows: false, selectable: false, selected: () => [] }
+  { loading: false, rowKey: '_id', emptyText: 'Aucun résultat.', clickableRows: false, selectable: false, selected: () => [], total: 0, page: 1, limit: 50 }
 );
 
 const emit = defineEmits<{ 
   (e: 'row-click', row: T): void;
   (e: 'update:selected', value: string[]): void;
+  (e: 'page-change', page: number): void;
 }>();
 
 const sortKey = ref<string | null>(null);
@@ -85,6 +90,18 @@ function toggleRow(row: T) {
   } else {
     emit('update:selected', [...props.selected, id]);
   }
+}
+
+const totalPages = computed(() => {
+  if (!props.total || !props.limit) return 1;
+  return Math.ceil(props.total / props.limit);
+});
+
+const hasPagination = computed(() => props.total > props.limit);
+
+function goToPage(p: number) {
+  if (p < 1 || p > totalPages.value) return;
+  emit('page-change', p);
 }
 </script>
 
@@ -161,5 +178,45 @@ function toggleRow(row: T) {
         </tr>
       </tbody>
     </table>
+    <!-- Pagination -->
+    <div v-if="hasPagination" class="flex items-center justify-between px-4 py-3 border-t border-border/60 bg-card">
+      <p class="text-[12px] text-muted-foreground">
+        {{ (page - 1) * limit + 1 }}–{{ Math.min(page * limit, total) }} sur {{ total }} résultats
+      </p>
+      <div class="flex items-center gap-1">
+        <button
+          @click="goToPage(page - 1)"
+          :disabled="page <= 1"
+          class="h-8 w-8 flex items-center justify-center rounded-md border border-border text-[13px] disabled:opacity-30 hover:bg-black/[0.04] transition-colors"
+        >
+          ‹
+        </button>
+        <template v-for="p in totalPages" :key="p">
+          <button
+            v-if="p === 1 || p === totalPages || Math.abs(p - page) <= 1"
+            @click="goToPage(p)"
+            :class="[
+              'h-8 w-8 flex items-center justify-center rounded-md border text-[13px] transition-colors font-medium',
+              p === page ? 'bg-black text-white border-black' : 'border-border hover:bg-black/[0.04]'
+            ]"
+          >{{ p }}</button>
+          <span
+            v-else-if="p === 2 && page > 3"
+            class="h-8 w-8 flex items-center justify-center text-muted-foreground"
+          >…</span>
+          <span
+            v-else-if="p === totalPages - 1 && page < totalPages - 2"
+            class="h-8 w-8 flex items-center justify-center text-muted-foreground"
+          >…</span>
+        </template>
+        <button
+          @click="goToPage(page + 1)"
+          :disabled="page >= totalPages"
+          class="h-8 w-8 flex items-center justify-center rounded-md border border-border text-[13px] disabled:opacity-30 hover:bg-black/[0.04] transition-colors"
+        >
+          ›
+        </button>
+      </div>
+    </div>
   </div>
 </template>

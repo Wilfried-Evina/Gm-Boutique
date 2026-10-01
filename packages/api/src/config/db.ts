@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import { env } from './env';
 import { logger } from '../utils/logger';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
 export const connectDB = async (): Promise<boolean> => {
   try {
@@ -11,6 +10,7 @@ export const connectDB = async (): Promise<boolean> => {
     // Si l'URI contient les placeholders par défaut, on utilise une base en mémoire
     if (uri.includes('<username>:<password>')) {
       logger.info('⚠️ URI MongoDB par défaut détecté. Démarrage de MongoDB en mémoire pour le développement...');
+      const { MongoMemoryServer } = require('mongodb-memory-server');
       const mongoServer = await MongoMemoryServer.create();
       uri = mongoServer.getUri();
       isMemory = true;

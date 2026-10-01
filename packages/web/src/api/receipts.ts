@@ -27,3 +27,9 @@ export async function getClientReceipts(clientId: string): Promise<IReceipt[]> {
   const response = await apiClient.get<IReceipt[]>(`/receipts/client/${clientId}`);
   return response.data;
 }
+
+export async function sendReceiptByEmail(receiptId: string, email?: string): Promise<{ message: string }> {
+  const response = await apiClient.post<{ message: string }>(`/receipts/${receiptId}/send-email`, { email });
+  return response.data;
+}
+

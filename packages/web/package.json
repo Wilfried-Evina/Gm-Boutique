@@ -16,6 +16,7 @@
     "apexcharts": "^6.9.0",
     "axios": "^1.19.0",
     "clsx": "^2.1.1",
+    "html2canvas": "^1.4.1",
     "jsbarcode": "^3.12.3",
     "lucide-vue-next": "^1.0.0",
     "pinia": "^4.0.2",

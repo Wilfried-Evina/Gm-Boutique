@@ -55,13 +55,35 @@
       <div class="pt-4 border-t border-gray-200">
         <p class="text-sm font-semibold mb-2">Signature de la déposante</p>
         <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 inline-block">
-          <img :src="receipt.signatureData" alt="Signature" class="h-24 object-contain mix-blend-multiply" />
+          <img v-if="receipt.signatureData.startsWith('data:')" :src="receipt.signatureData" alt="Signature" class="h-24 object-contain mix-blend-multiply" />
+          <p v-else class="text-sm text-gray-500 italic h-24 flex items-center">{{ receipt.signatureData }}</p>
         </div>
       </div>
 
     </div>
     
     <template #footer>
+      <!-- Champ email si la cliente n'en a pas ou si l'utilisateur veut changer -->
+      <div v-if="showEmailInput" class="flex items-center gap-2 w-full sm:w-auto">
+        <input
+          v-model="customEmail"
+          type="email"
+          placeholder="email@exemple.com"
+          class="h-10 px-3 rounded-lg text-[13px] border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black w-full sm:w-56"
+          @keydown.enter="sendByEmail"
+          @keydown.escape="showEmailInput = false; customEmail = ''"
+        />
+        <button
+          type="button"
+          class="h-10 px-4 rounded-lg text-[13px] font-medium bg-black text-white hover:bg-gray-800 transition-colors flex items-center gap-2 flex-shrink-0"
+          @click="sendByEmail"
+          :disabled="isSendingEmail"
+        >
+          <svg v-if="isSendingEmail" class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+          <Mail v-else class="w-4 h-4" />
+          Envoyer
+        </button>
+      </div>
       <button
         type="button"
         class="h-10 px-5 rounded-lg text-[13px] font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto"
@@ -71,13 +93,26 @@
       </button>
       <button
         type="button"
+        class="h-10 px-5 rounded-lg text-[13px] font-medium border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
+        @click="handleEmailClick"
+        :disabled="isSendingEmail"
+        :title="emailToUse ? `Envoyer à ${emailToUse}` : 'Saisir un email'"
+      >
+        <svg v-if="isSendingEmail" class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        <Mail v-else class="w-4 h-4" />
+        {{ isSendingEmail ? 'Envoi...' : (emailToUse ? 'Envoyer par email' : 'Envoyer par email') }}
+      </button>
+      <button
+        type="button"
         class="h-10 px-5 rounded-lg text-[13px] font-medium bg-black text-white hover:bg-gray-800 transition-colors w-full sm:w-auto flex items-center justify-center gap-2"
-        @click="printReceipt"
+        @click="printReceiptA4"
+        :disabled="isGenerating"
       >
         <Printer class="w-4 h-4" />
-        Imprimer Ticket
+        {{ isGenerating ? 'Génération...' : 'Imprimer (A4)' }}
       </button>
     </template>
+
   </Modal>
 
   <!-- Hidden thermal receipt layout for printing -->
@@ -112,7 +147,8 @@
     <div class="thermal-divider">--------------------------------</div>
     <div class="thermal-signature">
       <p>Signature de la déposante:</p>
-      <img :src="receipt.signatureData" style="width: 100%; max-height: 100px; object-fit: contain;" />
+      <img v-if="receipt.signatureData.startsWith('data:')" :src="receipt.signatureData" style="width: 100%; max-height: 100px; object-fit: contain;" />
+      <p v-else style="font-size: 14px; font-style: italic; color: #666; text-align: center; margin-top: 20px;">{{ receipt.signatureData }}</p>
     </div>
     <div class="thermal-footer">
       <p>Merci de votre confiance !</p>
@@ -122,13 +158,16 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue';
 import Modal from '../ui/Modal.vue';
-import { Printer } from 'lucide-vue-next';
+import { Printer, Mail } from 'lucide-vue-next';
 import { formatDate, formatCHF } from '../../utils/format';
 import type { IReceipt } from '../../api/receipts';
 import type { IClient } from '@gm-boutique/shared';
+import { apiClient } from '../../api/client';
+import { useNotificationsStore } from '../../stores/notifications';
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
   receipt: IReceipt | null;
   client: IClient | null;
@@ -138,10 +177,79 @@ defineEmits<{
   (e: 'update:open', value: boolean): void;
 }>();
 
-function printReceipt() {
-  window.print();
+const notify = useNotificationsStore();
+const isGenerating = ref(false);
+const isSendingEmail = ref(false);
+const showEmailInput = ref(false);
+const customEmail = ref('');
+
+const emailToUse = computed(() => {
+  return props.client?.email || '';
+});
+
+async function printReceiptA4() {
+  if (!props.receipt) return;
+  if (isGenerating.value) return;
+  
+  isGenerating.value = true;
+  try {
+    const token = localStorage.getItem('access_token');
+    const response = await fetch(`${apiClient.defaults.baseURL}/receipts/${props.receipt._id}/pdf`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.ok) throw new Error("Erreur génération PDF");
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    
+    setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+  } catch (e) {
+    notify.error("Erreur lors de la génération du bon.");
+  } finally {
+    isGenerating.value = false;
+  }
+}
+
+async function sendByEmail() {
+  if (!props.receipt) return;
+  if (isSendingEmail.value) return;
+
+  const targetEmail = customEmail.value.trim() || emailToUse.value;
+  if (!targetEmail) {
+    showEmailInput.value = true;
+    notify.error("Veuillez saisir une adresse email.");
+    return;
+  }
+
+  isSendingEmail.value = true;
+  try {
+    await apiClient.post(`/receipts/${props.receipt._id}/send-email`, {
+      email: targetEmail || undefined
+    });
+    notify.success(`Bon envoyé par email à ${targetEmail} !`);
+    showEmailInput.value = false;
+    customEmail.value = '';
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || "Erreur lors de l'envoi de l'email.";
+    notify.error(msg);
+  } finally {
+    isSendingEmail.value = false;
+  }
+}
+
+function handleEmailClick() {
+  if (emailToUse.value && !showEmailInput.value) {
+    // Cliente a un email → envoie directement
+    sendByEmail();
+  } else {
+    // Pas d'email → affiche le champ
+    showEmailInput.value = true;
+  }
 }
 </script>
+
 
 <style>
 @media print {

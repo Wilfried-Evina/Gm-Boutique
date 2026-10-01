@@ -54,6 +54,10 @@ const recuperations = computed(() =>
 const baisses = computed(() =>
   alerts.value.filter((a) => a.priceReduction?.actionOnExpiry === 'reduce_price')
 );
+// Articles sans action définie mais présents depuis trop longtemps (5+ mois)
+const longInShop = computed(() =>
+  alerts.value.filter((a) => !a.priceReduction?.actionOnExpiry)
+);
 
 async function load() {
   loading.value = true;
@@ -87,7 +91,7 @@ onMounted(load);
     </div>
 
     <!-- Résumé -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
       <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center justify-center text-center">
         <p class="text-[13px] text-muted-foreground">Alertes actives</p>
         <p class="text-2xl font-semibold text-foreground mt-1">{{ alerts.length }}</p>
@@ -99,6 +103,10 @@ onMounted(load);
       <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center justify-center text-center">
         <p class="text-[13px] text-muted-foreground">Baisses de prix à venir</p>
         <p class="text-2xl font-semibold text-blue-700 mt-1">{{ baisses.length }}</p>
+      </div>
+      <div class="bg-card rounded-xl border border-border/60 shadow-sm p-5 flex flex-col items-center justify-center text-center">
+        <p class="text-[13px] text-muted-foreground">En boutique +5 mois</p>
+        <p class="text-2xl font-semibold text-red-700 mt-1">{{ longInShop.length }}</p>
       </div>
     </div>
 
@@ -154,7 +162,7 @@ onMounted(load);
       </section>
 
       <!-- Section : Baisses de prix -->
-      <section>
+      <section class="mb-8">
         <h2 class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
           <TrendingDown class="w-4 h-4 text-blue-600" :stroke-width="1.75" />
           Baisses de prix à venir <span class="text-muted-foreground/60 font-normal">({{ baisses.length }})</span>
@@ -193,6 +201,54 @@ onMounted(load);
         </div>
         <p v-else class="text-[13px] text-muted-foreground py-6 text-center bg-card rounded-xl border border-dashed border-border/60">
           Aucune baisse de prix à venir.
+        </p>
+      </section>
+
+      <!-- Section : Articles en boutique depuis trop longtemps (sans action planifiée) -->
+      <section>
+        <h2 class="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+          <Clock class="w-4 h-4 text-red-600" :stroke-width="1.75" />
+          En boutique depuis +5 mois <span class="text-muted-foreground/60 font-normal">({{ longInShop.length }})</span>
+        </h2>
+        <div v-if="longInShop.length" class="flex flex-col gap-3">
+          <div
+            v-for="a in longInShop"
+            :key="a._id"
+            class="bg-card rounded-xl border border-border/60 shadow-sm p-4 border-l-4 border-l-red-400"
+          >
+            <div class="flex items-start justify-between gap-4 flex-wrap">
+              <div class="min-w-0">
+                <p class="text-[14px] text-foreground">
+                  L'article <strong>{{ a.brand }} · {{ a.type }}</strong> de la déposante
+                  <strong>{{ clientName(a) }}</strong> est en boutique depuis
+                  <span class="text-red-600 font-medium">{{ inShopSince(a) }}</span> sans être vendu.
+                  Il faut envisager de le restituer ou de le solder.
+                </p>
+                <div class="flex items-center gap-3 mt-2 text-[12px] text-muted-foreground">
+                  <span class="inline-flex items-center gap-1"><Clock class="w-3.5 h-3.5" :stroke-width="1.75" /> Déposé le {{ formatDate(a.createdAt) }}</span>
+                  <span class="font-mono">{{ a.barcode }}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <a
+                  v-if="clientOf(a)?.phone"
+                  :href="`tel:${clientOf(a).phone}`"
+                  class="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[13px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                >
+                  <PhoneCall class="w-4 h-4" :stroke-width="1.75" /> {{ clientOf(a).phone }}
+                </a>
+                <button
+                  class="inline-flex items-center gap-1 h-9 px-3 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
+                  @click="goToClient(a)"
+                >
+                  Fiche <ArrowRight class="w-4 h-4" :stroke-width="1.75" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p v-else class="text-[13px] text-muted-foreground py-6 text-center bg-card rounded-xl border border-dashed border-border/60">
+          Aucun article en boutique depuis trop longtemps.
         </p>
       </section>
     </template>

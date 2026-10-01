@@ -52,6 +52,12 @@
       :barcode="selectedBarcode" 
       @close="isBarcodeModalOpen = false" 
     />
+
+    <ScannerModal 
+      :isOpen="isScannerModalOpen" 
+      @close="isScannerModalOpen = false" 
+      @scanned="handleScannedCode" 
+    />
   </div>
 </template>
 
@@ -64,6 +70,7 @@ import DataTable from '../../components/ui/DataTable.vue';
 import StatusBadge from '../../components/ui/StatusBadge.vue';
 import ArticleFormModal from '../../components/articles/ArticleFormModal.vue';
 import BarcodePreviewModal from '../../components/articles/BarcodePreviewModal.vue';
+import ScannerModal from '../../components/ui/ScannerModal.vue';
 
 const route = useRoute();
 const articleStore = useArticleStore();
@@ -73,6 +80,7 @@ const clients = ref<any[]>([]);
 
 const isFormModalOpen = ref(false);
 const isBarcodeModalOpen = ref(false);
+const isScannerModalOpen = ref(false);
 const selectedBarcode = ref<string | null>(null);
 
 const columns = [
@@ -123,12 +131,11 @@ const openBarcode = (barcode: string) => {
 };
 
 const openBarcodeScanner = () => {
-  const code = prompt('Veuillez scanner ou taper le code-barres (GM-YYYY-XXXX) :');
-  if (code) {
-    // Si c'est un vrai scan, on pourrait appeler l'API et rediriger ou ouvrir une modale.
-    // Pour la démo, on ouvre l'aperçu !
-    openBarcode(code.trim().toUpperCase());
-  }
+  isScannerModalOpen.value = true;
+};
+
+const handleScannedCode = (code: string) => {
+  openBarcode(code.trim().toUpperCase());
 };
 
 </script>

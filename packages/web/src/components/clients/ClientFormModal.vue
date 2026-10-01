@@ -37,6 +37,7 @@ const { value: lastName } = useField<string>('lastName');
 const { value: phone } = useField<string>('phone');
 const { value: email } = useField<string>('email');
 const { value: address } = useField<string>('address');
+const { value: isDigitalized } = useField<boolean>('isDigitalized');
 
 // (Ré)initialise le formulaire à chaque ouverture.
 watch(
@@ -50,6 +51,7 @@ watch(
         phone: props.client?.phone ?? '',
         email: props.client?.email ?? '',
         address: props.client?.address ?? '',
+        isDigitalized: props.client?.isDigitalized ?? false,
       },
     });
   },
@@ -69,7 +71,11 @@ const onSubmit = handleSubmit(async (values) => {
 
     const saved = isEdit.value
       ? await updateClient(props.client!._id, dto)
-      : await createClient({ ...dto, cguAccepted: props.client?.cguAccepted ?? false });
+      : await createClient({ 
+          ...dto, 
+          cguAccepted: true,
+          isDigitalized: values.isDigitalized 
+        });
 
     notify.success(isEdit.value ? 'Cliente mise à jour.' : 'Cliente créée avec succès.');
     emit('saved', saved);
@@ -151,6 +157,21 @@ const onSubmit = handleSubmit(async (values) => {
           placeholder="Rue du Commerce 1, 1000 Lausanne"
         />
       </div>
+
+      <div v-if="!isEdit" class="flex items-center gap-2 mt-2">
+        <input
+          id="digitalized-checkbox"
+          type="checkbox"
+          v-model="isDigitalized"
+          class="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+        />
+        <label for="digitalized-checkbox" class="text-[13px] font-medium text-foreground cursor-pointer">
+          Ancienne cliente (Digitalisation d'archives)
+        </label>
+      </div>
+      <p v-if="!isEdit && isDigitalized" class="text-[11px] text-muted-foreground mt-[-10px] ml-6">
+        Permet de saisir le dossier papier historique. L'alerte pour signer les CGU numériques restera active pour ses futurs dépôts.
+      </p>
     </form>
 
     <template #footer>

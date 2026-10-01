@@ -57,20 +57,12 @@ if (env.NODE_ENV !== 'test') {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 
-// Forcer HTTPS en production
-if (env.NODE_ENV === 'production') {
-  app.use((req, res, next) => {
-    if (req.header('x-forwarded-proto') !== 'https') {
-      res.redirect(`https://${req.header('host')}${req.url}`);
-    } else {
-      next();
-    }
-  });
-}
+// Middleware de sécurité globales gérées par le proxy (plus de redirection forcée ici)
 
 // Middlewares - Sécurité globale
-app.use(helmet());
+// app.use(helmet()); // Retiré car cause ERR_CONNECTION_RESET derrière le proxy Infomaniak
 app.use(cors({
   origin: (origin, callback) => {
     // Autoriser localhost ET les IP du réseau local (192.168.x.x, 10.x.x.x)
@@ -92,13 +84,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Limiter les requêtes répétées pour l'API entière (100 req par 15min)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10000,
-  message: 'Too many requests from this IP, please try again after 15 minutes'
-});
-app.use('/api', limiter);
+// Limiter les requêtes répétées pour l'API entière retiré (cause des soucis de proxy)
 
 app.use(express.json({ limit: '10mb' })); // Limite augmentée pour accepter les images base64 (signatures)
 app.use(express.urlencoded({ extended: true }));
@@ -115,6 +101,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import settingsRoutes from './routes/settings.routes';
 import documentRoutes from './routes/document.routes';
 import receiptRoutes from './routes/receipt.routes';
+import digitalizationRoutes from './routes/digitalization.routes';
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -127,6 +114,7 @@ app.use('/api/receipts', receiptRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/retrocessions', retrocessionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/digitalization', digitalizationRoutes);
 
 // Servir les documents uploadés
 import path from 'path';
