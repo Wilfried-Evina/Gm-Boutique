@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { Article } from '../models/Article';
 import { Client } from '../models/Client';
+import { Counter } from '../models/Counter';
 import { PaginatedResponse, ArticleStatus, ActionOnExpiry } from '@gm-boutique/shared';
-import crypto from 'crypto';
 import bwipjs from 'bwip-js';
 
 // Validation Schemas
@@ -55,8 +55,14 @@ export const articleController = {
         }
       }
 
-      // Generate a unique barcode (temporary simple generation, will be refined in Issue #17)
-      const barcode = `GM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      // Barcode séquentiel purement numérique (compatible tous claviers QWERTY/AZERTY/etc.)
+      // Format : 7 chiffres avec zéros de tête → ex: 0000001, 0000002...
+      const counter = await Counter.findByIdAndUpdate(
+        'barcode',
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      const barcode = String(counter.seq).padStart(7, '0');
 
       const article = new Article({
         ...data,
@@ -73,7 +79,7 @@ export const articleController = {
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
+      const limit = parseInt(req.query.limit as string) || 50;
       const status = req.query.status as string;
       const clientId = req.query.clientId as string;
 
@@ -178,8 +184,40 @@ export const articleController = {
 
   async getByBarcode(req: Request, res: Response, next: NextFunction) {
     try {
-      const article = await Article.findOne({ barcode: req.params.barcode }).populate('clientId');
-      if (!article) return res.status(404).json({ message: 'Article not found' });
+      const raw = req.params.barcode.trim();
+
+      // Table de conversion AZERTY → QWERTY pour les caractères produits par les touches numériques
+      // Quand le scanner envoie des scan codes QWERTY et que Windows interprète en AZERTY :
+      //   touche `0` → `à`/`À`,  `1` → `&`,  `2` → `é`,  `3` → `"`,  `4` → `'`,
+      //   `5` → `(`,  `6` → `-` (donc pas de pb),  `7` → `è`/`È`,  `8` → `_`,  `9` → `ç`/`Ç`
+      const AZERTY_TO_QWERTY: Record<string, string> = {
+        '&': '1', 'é': '2', '"': '3', "'": '4', '(': '5',
+        'è': '7', 'È': '7', '_': '8', 'ç': '9', 'Ç': '9',
+        'à': '0', 'À': '0',
+        // Lettres inversées AZERTY/QWERTY
+        'a': 'q', 'A': 'Q', 'q': 'a', 'Q': 'A',
+        'z': 'w', 'Z': 'W', 'w': 'z', 'W': 'Z',
+      };
+
+      const converted = raw.split('').map(c => AZERTY_TO_QWERTY[c] ?? c).join('');
+
+      console.log(`[SCAN] brut: "${raw}" → converti: "${converted}"`);
+
+      // Recherche avec la valeur convertie d'abord, puis brute si besoin
+      const candidates = Array.from(new Set([converted, raw]));
+      let article = null;
+
+      for (const candidate of candidates) {
+        article = await Article.findOne({ barcode: candidate }).populate('clientId');
+        if (article) break;
+      }
+
+      if (!article) {
+        console.log(`[SCAN] Aucun article trouvé pour: "${raw}" (converti: "${converted}")`);
+        return res.status(404).json({ message: 'Article not found' });
+      }
+
+      console.log(`[SCAN] Article trouvé: ${article.barcode}`);
       res.json(article);
     } catch (error) {
       next(error);
@@ -189,9 +227,15 @@ export const articleController = {
   async getExpired(req: Request, res: Response, next: NextFunction) {
     try {
       const now = new Date();
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
       const expiredArticles = await Article.find({
-        'priceReduction.deadlineDate': { $lt: now },
-        status: { $in: [ArticleStatus.DEPOSITED, ArticleStatus.ON_SALE] }
+        status: { $in: [ArticleStatus.DEPOSITED, ArticleStatus.ON_SALE] },
+        $or: [
+          { 'priceReduction.deadlineDate': { $lt: now } },
+          { createdAt: { $lt: sixMonthsAgo } }
+        ]
       }).populate('clientId', 'firstName lastName phone');
 
       res.json(expiredArticles);
@@ -209,10 +253,16 @@ export const articleController = {
     try {
       const inOneMonth = new Date();
       inOneMonth.setMonth(inOneMonth.getMonth() + 1);
+      
+      const fiveMonthsAgo = new Date();
+      fiveMonthsAgo.setMonth(fiveMonthsAgo.getMonth() - 5);
 
       const articles = await Article.find({
-        'priceReduction.deadlineDate': { $lte: inOneMonth },
-        status: { $in: [ArticleStatus.DEPOSITED, ArticleStatus.ON_SALE] }
+        status: { $in: [ArticleStatus.DEPOSITED, ArticleStatus.ON_SALE] },
+        $or: [
+          { 'priceReduction.deadlineDate': { $lte: inOneMonth } },
+          { createdAt: { $lte: fiveMonthsAgo } }
+        ]
       })
         .populate('clientId', 'firstName lastName phone email referenceNumber')
         .sort({ 'priceReduction.deadlineDate': 1 });
@@ -231,10 +281,13 @@ export const articleController = {
       bwipjs.toBuffer({
         bcid: 'code128',
         text: article.barcode,
-        scale: 3,
-        height: 10,
-        includetext: true,
+        scale: 5,
+        height: 12,
+        includetext: false,
         textxalign: 'center',
+        paddingwidth: 15,
+        paddingheight: 5,
+        backgroundcolor: 'ffffff'
       }, (err, png) => {
         if (err) {
           return next(err);

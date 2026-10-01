@@ -35,12 +35,13 @@ const articleSchema = new Schema<IArticleDocument>(
       actionOnExpiry: { type: String, enum: Object.values(ActionOnExpiry) }
     },
     
-    status: { type: String, enum: Object.values(ArticleStatus), default: ArticleStatus.DEPOSITED },
+    status: { type: String, enum: Object.values(ArticleStatus), default: ArticleStatus.ON_SALE },
     retrocessionPaid: { type: Boolean, default: false },
     retrocessionPaidAt: { type: Date },
     retrocessionPaymentMethod: { type: String },
     retrocessionReference: { type: String },
     retrocessionReceiptId: { type: Schema.Types.ObjectId, ref: 'Document' },
+    isHistorical: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

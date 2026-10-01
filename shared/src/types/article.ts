@@ -34,6 +34,7 @@ export interface IArticle {
   
   createdAt: string | Date;
   updatedAt: string | Date;
+  isHistorical?: boolean; // Flag to indicate if it was created via digitalization
 }
 
 export interface CreateArticleDTO {

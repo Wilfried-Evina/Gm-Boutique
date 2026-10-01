@@ -24,6 +24,7 @@ const props = defineProps<{
     barcode: string;
     brand: string;
     type: string;
+    description?: string;
     finalClientAmount?: number;
     clientPrice?: number;
     saleDate?: string | Date;
@@ -40,24 +41,63 @@ const notify = useNotificationsStore();
 
 const paymentMethod = ref<RetrocessionPaymentMethod>('bank_transfer');
 const loading = ref(false);
+const selectedArticleIds = ref<string[]>([]);
 
 // Gestion de la signature QR code pour les espèces
 const qrModalOpen = ref(false);
 const capturedSignature = ref<string | null>(null);
 
+function getArtId(a: { _id?: string; articleId?: string }): string {
+  return a.articleId || a._id || '';
+}
+
 watch(
-  () => props.open,
-  (isOpen) => {
+  () => [props.open, props.articles] as const,
+  ([isOpen]) => {
     if (isOpen) {
       paymentMethod.value = 'bank_transfer';
       capturedSignature.value = null;
       qrModalOpen.value = false;
+      selectedArticleIds.value = props.articles.map(getArtId).filter(Boolean);
     }
-  }
+  },
+  { immediate: true }
 );
 
+const selectedArticles = computed(() => {
+  const set = new Set(selectedArticleIds.value);
+  return props.articles.filter((a) => set.has(getArtId(a)));
+});
+
+const allSelected = computed(() => {
+  return props.articles.length > 0 && selectedArticles.value.length === props.articles.length;
+});
+
+const someSelected = computed(() => {
+  return selectedArticles.value.length > 0 && selectedArticles.value.length < props.articles.length;
+});
+
+function toggleArticle(id: string) {
+  if (!id) return;
+  if (selectedArticleIds.value.includes(id)) {
+    selectedArticleIds.value = selectedArticleIds.value.filter((x) => x !== id);
+  } else {
+    selectedArticleIds.value = [...selectedArticleIds.value, id];
+  }
+  capturedSignature.value = null;
+}
+
+function toggleAllArticles() {
+  if (allSelected.value) {
+    selectedArticleIds.value = [];
+  } else {
+    selectedArticleIds.value = props.articles.map(getArtId).filter(Boolean);
+  }
+  capturedSignature.value = null;
+}
+
 const totalAmount = computed(() => {
-  return props.articles.reduce((sum, a) => {
+  return selectedArticles.value.reduce((sum, a) => {
     const amount = a.finalClientAmount ?? a.clientPrice ?? 0;
     return sum + amount;
   }, 0);
@@ -65,6 +105,10 @@ const totalAmount = computed(() => {
 
 function handleMainAction() {
   if (!props.client) return;
+  if (selectedArticles.value.length === 0) {
+    notify.error('Veuillez sélectionner au moins un article à régler.');
+    return;
+  }
   if (!paymentMethod.value) {
     notify.error('Veuillez sélectionner un mode de paiement.');
     return;
@@ -90,12 +134,12 @@ function onQrSigned(payload: { signatureBase64: string }) {
 async function executePayment(sigBase64?: string) {
   if (!props.client) return;
 
-  const articleIds = props.articles
-    .map((a) => a.articleId || a._id)
+  const articleIds = selectedArticles.value
+    .map(getArtId)
     .filter((id): id is string => Boolean(id));
 
   if (articleIds.length === 0) {
-    notify.error('Aucun article à régler.');
+    notify.error('Veuillez sélectionner au moins un article à régler.');
     return;
   }
 
@@ -206,16 +250,35 @@ async function executePayment(sigBase64?: string) {
       <!-- Tableau des articles soldés (STRICTEMENT SANS PRIX PUBLIC) -->
       <div>
         <div class="flex items-center justify-between mb-1.5">
-          <p class="text-xs font-semibold text-foreground uppercase tracking-wider">
-            Articles réglés ({{ articles.length }})
-          </p>
+          <div class="flex items-center gap-2">
+            <p class="text-xs font-semibold text-foreground uppercase tracking-wider">
+              Articles à régler ({{ selectedArticles.length }} / {{ articles.length }})
+            </p>
+            <button
+              v-if="articles.length > 1"
+              type="button"
+              class="text-[11px] font-medium text-emerald-700 hover:text-emerald-800 underline underline-offset-2"
+              @click="toggleAllArticles"
+            >
+              {{ allSelected ? 'Tout désélectionner' : 'Tout sélectionner' }}
+            </button>
+          </div>
           <span class="text-[11px] text-muted-foreground">Gains nets déposante</span>
         </div>
 
-        <div class="border border-border/60 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+        <div class="border border-border/60 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
           <table class="w-full text-left text-xs border-collapse">
             <thead class="bg-black/5 text-muted-foreground font-semibold border-b border-border/50 sticky top-0">
               <tr>
+                <th class="py-2 px-3 w-9 text-center">
+                  <input
+                    type="checkbox"
+                    class="w-4 h-4 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                    :checked="allSelected"
+                    :indeterminate="someSelected"
+                    @change="toggleAllArticles"
+                  />
+                </th>
                 <th class="py-2 px-3">Article</th>
                 <th class="py-2 px-3">Code</th>
                 <th class="py-2 px-3">Vendu le</th>
@@ -223,8 +286,25 @@ async function executePayment(sigBase64?: string) {
               </tr>
             </thead>
             <tbody class="divide-y divide-border/40">
-              <tr v-for="(a, idx) in articles" :key="a.articleId || a._id || idx" class="hover:bg-black/[0.01]">
-                <td class="py-2 px-3 font-medium text-foreground">{{ a.brand }} · {{ a.type }}</td>
+              <tr
+                v-for="(a, idx) in articles"
+                :key="a.articleId || a._id || idx"
+                class="cursor-pointer transition-colors"
+                :class="selectedArticleIds.includes(getArtId(a)) ? 'hover:bg-black/[0.02]' : 'opacity-50 bg-black/[0.01] hover:opacity-75'"
+                @click="toggleArticle(getArtId(a))"
+              >
+                <td class="py-2 px-3 text-center" @click.stop>
+                  <input
+                    type="checkbox"
+                    class="w-4 h-4 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                    :checked="selectedArticleIds.includes(getArtId(a))"
+                    @change="toggleArticle(getArtId(a))"
+                  />
+                </td>
+                <td class="py-2 px-3 font-medium text-foreground">
+                  {{ a.brand }} · {{ a.type }}
+                  <span v-if="a.description" class="block text-[11px] font-normal text-muted-foreground">{{ a.description }}</span>
+                </td>
                 <td class="py-2 px-3 font-mono text-muted-foreground text-[11px]">{{ a.barcode }}</td>
                 <td class="py-2 px-3 text-muted-foreground">{{ formatDate(a.saleDate || a.updatedAt) }}</td>
                 <td class="py-2 px-3 text-right font-bold text-foreground">
@@ -240,7 +320,7 @@ async function executePayment(sigBase64?: string) {
       <div class="flex items-start gap-2.5 p-3 rounded-xl bg-black/[0.02] border border-border/50 text-[12px] text-muted-foreground">
         <ShieldCheck class="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
         <p>
-          Cette action enregistre définitivement le versement et génère une <strong>quittance officielle de rétrocession (PDF)</strong> archivée dans les documents de la déposante.
+          Cette action enregistre définitivement le versement pour {{ selectedArticles.length > 1 ? `les ${selectedArticles.length} articles sélectionnés` : 'l’article sélectionné' }} et génère une <strong>quittance officielle de rétrocession (PDF)</strong> archivée dans les documents de la déposante.
         </p>
       </div>
     </div>
@@ -260,11 +340,11 @@ async function executePayment(sigBase64?: string) {
         <button
           type="button"
           class="h-9 px-4 rounded-lg bg-emerald-700 text-white text-sm font-medium hover:bg-emerald-800 disabled:opacity-50 transition-colors flex items-center gap-2 shadow-sm"
-          :disabled="loading || articles.length === 0"
+          :disabled="loading || selectedArticles.length === 0"
           @click="handleMainAction"
         >
           <CheckCircle2 class="w-4 h-4" />
-          <span>{{ loading ? 'Enregistrement…' : `Régler · ${formatCHF(totalAmount)}` }}</span>
+          <span>{{ loading ? 'Enregistrement…' : `Régler (${selectedArticles.length}) · ${formatCHF(totalAmount)}` }}</span>
         </button>
       </div>
     </template>

@@ -10,8 +10,9 @@ const createClientSchema = z.object({
   phone: z.string().min(1),
   email: z.string().email().optional().or(z.literal('')),
   address: z.string().optional(),
-  cguAccepted: z.boolean().default(false),
+  cguAccepted: z.boolean().default(true),
   signatureData: z.string().optional(),
+  isDigitalized: z.boolean().optional(),
 });
 
 const updateClientSchema = createClientSchema.partial();
@@ -29,6 +30,7 @@ export const clientController = {
 
       const client = new Client({
         ...data,
+        isDigitalized: data.isDigitalized || false,
         cguAcceptedAt: data.cguAccepted ? new Date() : undefined,
       });
 

@@ -59,9 +59,10 @@ describe('Articles & Margins API', () => {
     
     expect(res.status).toBe(201);
     expect(res.body._id).toBeDefined();
-    expect(res.body.status).toBe('deposited');
+    expect(res.body.status).toBe('on_sale'); // Statut par défaut = directement en vente
     expect(res.body.barcode).toBeDefined();
     expect(res.body.clientPrice).toBe(50);
+
   });
 
   it('should update article status to sold and check if sale record is created', async () => {

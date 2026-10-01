@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronRight, CreditCard } from 'lucide-vue-next';
 import { useNotificationsStore } from '../stores/notifications';
@@ -160,7 +160,7 @@ onMounted(load);
       row-key="clientId"
       clickable-rows
       empty-text="Aucune rétrocession pour le moment."
-      @row-click="(r) => router.push(`/clients/${r.clientId}`)"
+      @row-click="(r) => router.push(`/clients/${r.clientId}?tab=retrocessions`)"
     >
       <template #cell-clientName="{ row }">
         <span class="font-medium text-foreground">{{ row.referenceNumber || row.clientName }}</span>
@@ -182,7 +182,7 @@ onMounted(load);
           class="inline-flex items-center h-6 px-2.5 rounded-full text-[11px] font-medium"
           :class="row.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'"
         >
-          {{ row.status === 'paid' ? 'Soldé' : 'En attente' }}
+          {{ row.status === 'paid' ? 'Soldé' : row.totalPaid > 0 ? 'Partiel' : 'En attente' }}
         </span>
       </template>
 
@@ -199,8 +199,8 @@ onMounted(load);
 
           <button
             class="p-1.5 rounded-md text-muted-foreground/70 hover:bg-black/5 hover:text-foreground transition-colors"
-            title="Voir la fiche"
-            @click="router.push(`/clients/${row.clientId}`)"
+            title="Voir les rétrocessions de la cliente"
+            @click="router.push(`/clients/${row.clientId}?tab=retrocessions`)"
           >
             <ChevronRight class="w-4 h-4" :stroke-width="1.75" />
           </button>

@@ -1,8 +1,16 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
-// Load .env from the root directory
-dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
+// Try to load .env from current working directory first (production/Infomaniak), fallback to monorepo root (dev)
+const prodEnvPath = path.resolve(process.cwd(), '.env');
+const devEnvPath = path.resolve(__dirname, '../../../../.env');
+
+if (fs.existsSync(prodEnvPath)) {
+  dotenv.config({ path: prodEnvPath });
+} else {
+  dotenv.config({ path: devEnvPath });
+}
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -17,6 +25,6 @@ export const env = {
   SMTP_USER: process.env.SMTP_USER || 'gmboutique@gestion-gmboutique.ch',
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_FROM: process.env.SMTP_FROM || 'GMBoutique <gmboutique@gestion-gmboutique.ch>',
-  FRONTEND_URL: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://app.gmboutique.ch' : 'http://localhost:5173'),
+  FRONTEND_URL: process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://gestion-gmboutique.ch' : 'http://localhost:5173'),
 };
 

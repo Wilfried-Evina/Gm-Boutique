@@ -12,8 +12,6 @@ export default defineConfig({
     },
   },
   server: {
-    // Écoute sur toutes les interfaces réseau pour que le téléphone (même WiFi)
-    // puisse atteindre le serveur web via l'IP du PC (ex: http://192.168.1.19:5173).
     host: true,
     proxy: {
       '/api': {
@@ -21,5 +19,8 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  optimizeDeps: {
+    include: ['@gm-boutique/shared'],
   },
 })

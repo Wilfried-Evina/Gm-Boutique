@@ -99,7 +99,7 @@
       <template #cell-actions="{ row: item }">
         <div class="flex justify-end space-x-2">
           <!-- Action: Modifier -->
-          <button v-if="['deposited', 'on_sale'].includes(item.status)" @click="openEditModal(item)" class="text-xs font-medium text-gray-600 hover:text-black">Modifier</button>
+          <button v-if="['deposited', 'on_sale'].includes(item.status) || item.isHistorical" @click="openEditModal(item)" class="text-xs font-medium text-gray-600 hover:text-black">Modifier</button>
           
           <!-- Action: Mettre en vente (si déposé) -->
           <button v-if="item.status === 'deposited'" @click="articleStore.changeStatus(item._id, 'on_sale' as any)" class="text-xs font-medium text-blue-600 hover:text-blue-900">En Vente</button>
@@ -132,40 +132,11 @@
       @signed="handleRestitutionSignature"
     />
 
-    <!-- Scanner Modal -->
-    <Modal :open="isScannerModalOpen" title="Scanner un Code-barres" @update:open="isScannerModalOpen = false">
-      <form @submit.prevent="submitScanner" class="space-y-4 p-2">
-        <p class="text-sm text-gray-500 text-center">
-          Veuillez scanner ou taper le code-barres (ex: GM-YYYY-XXXX).
-        </p>
-        <div>
-          <input 
-            type="text" 
-            v-model="scannedCode"
-            ref="scannerInput"
-            placeholder="GM-..." 
-            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm h-10 px-3 border" 
-            required 
-            autofocus
-          />
-        </div>
-        <div class="flex justify-end space-x-3 pt-4">
-          <button
-            type="button"
-            @click="isScannerModalOpen = false"
-            class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black"
-          >
-            Annuler
-          </button>
-          <button
-            type="submit"
-            class="bg-black border border-transparent text-white hover:bg-gray-800 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black"
-          >
-            Rechercher
-          </button>
-        </div>
-      </form>
-    </Modal>
+    <ScannerModal 
+      :isOpen="isScannerModalOpen" 
+      @close="isScannerModalOpen = false" 
+      @scanned="handleScannedCode" 
+    />
   </div>
 </template>
 
@@ -180,8 +151,10 @@ import Modal from '../../components/ui/Modal.vue';
 import ArticleFormModal from '../../components/articles/ArticleFormModal.vue';
 import BarcodePreviewModal from '../../components/articles/BarcodePreviewModal.vue';
 import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
+import ScannerModal from '../../components/ui/ScannerModal.vue';
 import { printArticlesLabels } from '../../utils/printLabels';
 import { createReceipt } from '../../api/receipts';
+import { getArticleByBarcode } from '../../api/articles';
 import { useNotificationsStore } from '../../stores/notifications';
 
 const route = useRoute();
@@ -269,26 +242,32 @@ const openBarcode = (item: any) => {
   isBarcodeModalOpen.value = true;
 };
 
+const scanError = ref<string | null>(null);
+const isScanLoading = ref(false);
+
 const openBarcodeScanner = async () => {
-  scannedCode.value = '';
   isScannerModalOpen.value = true;
-  // Attendre que la modale s'ouvre pour focus l'input
-  setTimeout(() => {
-    scannerInput.value?.focus();
-  }, 100);
 };
 
-const submitScanner = () => {
-  if (scannedCode.value) {
-    const code = scannedCode.value.trim().toUpperCase();
-    const article = articleStore.articles.find(a => a.barcode === code);
-    
-    if (article) {
-      openBarcode(article);
-    } else {
-      openBarcode(code); // Fallback string
-    }
+const handleScannedCode = async (code: string) => {
+  if (!code) return;
+
+  scanError.value = null;
+  isScanLoading.value = true;
+
+  try {
+    const article = await getArticleByBarcode(code);
     isScannerModalOpen.value = false;
+    openBarcode(article);
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      // Afficher l'erreur dans un toast ou gérer autrement car ScannerModal s'est déjà fermé
+      notify.error(`Aucun article trouvé pour le code « ${code} »`);
+    } else {
+      notify.error('Erreur lors de la recherche.');
+    }
+  } finally {
+    isScanLoading.value = false;
   }
 };
 

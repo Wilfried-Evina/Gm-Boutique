@@ -12,7 +12,7 @@ export const useArticleStore = defineStore('articles', () => {
   
   // Pagination et filtres
   const currentPage = ref(1);
-  const limit = ref(10);
+  const limit = ref(50);
   const currentStatusFilter = ref<string | undefined>(undefined);
   const currentClientFilter = ref<string | undefined>(undefined);
 
@@ -76,18 +76,26 @@ export const useArticleStore = defineStore('articles', () => {
     }
   };
   const changeStatus = async (id: string, newStatus: ArticleStatus) => {
-    isLoading.value = true;
+    // Mise à jour optimiste : on modifie immédiatement l'article localement
+    const articleIndex = articles.value.findIndex((a: any) => a._id === id);
+    const previousStatus = articleIndex !== -1 ? (articles.value[articleIndex] as any).status : null;
+    if (articleIndex !== -1) {
+      (articles.value[articleIndex] as any).status = newStatus;
+    }
+
     try {
       await articlesApi.updateStatus(id, newStatus);
       notificationStore.success('Statut mis à jour !');
-      await fetchArticles(currentPage.value);
     } catch (err: any) {
+      // Rollback en cas d'erreur
+      if (articleIndex !== -1 && previousStatus) {
+        (articles.value[articleIndex] as any).status = previousStatus;
+      }
       notificationStore.error('Erreur lors du changement de statut');
       throw err;
-    } finally {
-      isLoading.value = false;
     }
   };
+
 
   return {
     articles,

@@ -136,26 +136,7 @@
         <svg ref="barcodeRef"></svg>
       </div>
 
-      <!-- Acceptation CGU conditionnelle (Signature requise) -->
-      <div v-if="selectedClient && !selectedClient.cguAccepted" class="bg-amber-50 p-4 rounded-md border border-amber-200 flex flex-col items-start gap-3">
-        <p class="text-sm font-medium text-amber-900">
-          Cette déposante n'a pas encore signé les Conditions Générales. Une signature électronique est requise pour enregistrer le dépôt.
-        </p>
-        <button type="button" @click="cguModalOpen = true" class="text-amber-700 underline text-sm hover:text-amber-900">Lire les CGU</button>
-        
-        <div v-if="localCguAccepted" class="flex items-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded-md border border-green-200">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-          <span class="text-sm font-semibold">CGU acceptées et signées !</span>
-        </div>
-        <button 
-          v-else
-          type="button" 
-          @click="qrModalOpen = true" 
-          class="flex items-center justify-center gap-2 bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700 transition font-medium text-sm w-full"
-        >
-          Faire signer les CGU
-        </button>
-      </div>
+
 
       <!-- Actions -->
       <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
@@ -170,7 +151,7 @@
           v-if="!articleToEdit"
           type="button"
           @click="submit(false)"
-          :disabled="isSubmitting || (selectedClient && !selectedClient.cguAccepted && !localCguAccepted)"
+          :disabled="isSubmitting"
           class="bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50"
         >
           Enregistrer et Ajouter un autre
@@ -178,7 +159,7 @@
         <button
           type="button"
           @click="submit(true)"
-          :disabled="isSubmitting || (selectedClient && !selectedClient.cguAccepted && !localCguAccepted)"
+          :disabled="isSubmitting"
           class="bg-black border border-transparent text-white hover:bg-gray-800 px-4 py-2 rounded-md shadow-sm text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-50"
         >
           {{ isSubmitting ? 'Enregistrement...' : (articleToEdit ? 'Enregistrer les modifications' : 'Enregistrer et Fermer') }}

@@ -20,6 +20,7 @@
             placeholder="Scannez un code-barres..."
             autofocus
             :disabled="posStore.isProcessing"
+            @keydown="handleKeydown"
           />
         </form>
       </div>
@@ -155,6 +156,17 @@ const paymentMethod = ref<PaymentMethod>('card');
 
 const isReceiptOpen = ref(false);
 const currentSale = ref<ISale | null>(null);
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code.startsWith('Digit')) {
+    e.preventDefault();
+    barcodeInput.value += e.code.replace('Digit', '');
+  } else if (e.code.startsWith('Numpad') && e.code.length === 7) {
+    e.preventDefault();
+    barcodeInput.value += e.code.replace('Numpad', '');
+  }
+};
 
 const handleScan = async () => {
   const code = barcodeInput.value.trim().toUpperCase();

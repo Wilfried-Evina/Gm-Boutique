@@ -20,7 +20,16 @@
       :limit="articleStore.limit"
       @page-change="articleStore.fetchArticles"
     >
-      <!-- Le code-barres n'est géré que depuis la page globale Articles -->
+      <template #cell-barcode="{ row: item }">
+        <div class="flex items-center font-mono text-sm">
+          {{ item.barcode }}
+          <button @click="openBarcode(item)" class="ml-2 text-gray-400 hover:text-black" title="Voir code-barres">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+            </svg>
+          </button>
+        </div>
+      </template>
 
       <template #cell-clientId="{ row: item }">
         {{ (item.clientId as any).firstName }} {{ (item.clientId as any).lastName }}
@@ -51,6 +60,7 @@
     <BarcodePreviewModal 
       :is-open="isBarcodeModalOpen" 
       :barcode="selectedBarcode" 
+      :article="selectedArticleForBarcode"
       @close="isBarcodeModalOpen = false" 
     />
 
@@ -130,8 +140,11 @@ const onArticleSaved = () => {
   articleStore.fetchArticles(1);
 };
 
-const openBarcode = (barcode: string) => {
-  selectedBarcode.value = barcode;
+const selectedArticleForBarcode = ref<any>(null);
+
+const openBarcode = (item: any) => {
+  selectedBarcode.value = item.barcode;
+  selectedArticleForBarcode.value = item;
   isBarcodeModalOpen.value = true;
 };
 

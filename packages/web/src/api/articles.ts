@@ -81,3 +81,6 @@ export const articlesApi = {
     return data;
   }
 };
+
+// Export direct pour import nommé
+export const getArticleByBarcode = articlesApi.getByBarcode;

@@ -5,13 +5,6 @@
         <h1 class="text-3xl font-black tracking-tight text-gray-900">Factures & Bordereaux</h1>
         <p class="text-sm text-gray-500 mt-1">Historique complet des ventes et encaissements</p>
       </div>
-      
-      <div class="flex items-center gap-4">
-        <button @click="openHistoricalGodMode" class="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-black rounded-xl hover:bg-gray-800 transition-colors shadow-sm">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-          Digitaliser une ancienne facture
-        </button>
-      </div>
     </div>
 
     <!-- Report Generator Card -->
@@ -168,13 +161,6 @@
       :sale="selectedSale"
       @close="closeReceipt"
     />
-
-    <!-- Historical God Mode Modal -->
-    <HistoricalGodModeModal 
-      :is-open="isGodModeOpen"
-      @close="isGodModeOpen = false"
-      @saved="handleHistoricalSaved"
-    />
   </div>
 </template>
 
@@ -184,7 +170,6 @@ import { salesApi } from '../api/sales';
 import { apiClient } from '../api/client';
 import type { ISale } from '@gm-boutique/shared';
 import ReceiptPreviewModal from '../components/pos/ReceiptPreviewModal.vue';
-import HistoricalGodModeModal from '../components/pos/HistoricalGodModeModal.vue';
 import { useNotificationsStore } from '../stores/notifications';
 
 const MONTH_NAMES = [
@@ -214,7 +199,6 @@ const calculateGains = (sale: any) => {
 
 const isReceiptOpen = ref(false);
 const selectedSale = ref<ISale | null>(null);
-const isGodModeOpen = ref(false);
 const isGeneratingReport = ref(false);
 
 // Report mode
@@ -429,13 +413,7 @@ const generateCSVReport = async () => {
   }
 };
 
-const openHistoricalGodMode = () => {
-  isGodModeOpen.value = true;
-};
 
-const handleHistoricalSaved = (sale: ISale) => {
-  fetchSales();
-};
 
 const fetchSales = async () => {
   isLoading.value = true;

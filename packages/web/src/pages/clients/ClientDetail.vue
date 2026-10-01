@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download, Eye, FileText, Printer } from 'lucide-vue-next';
-import type { IClient, IArticle, IRetrocessionSummary } from '@gm-boutique/shared';
+import { ArrowLeft, Pencil, Phone, Mail, MapPin, CalendarDays, ShieldCheck, Download, Eye, FileText, Printer, CreditCard } from 'lucide-vue-next';
+import type { IClient, IArticle, IRetrocessionSummary, IRetrocessionItem } from '@gm-boutique/shared';
 import {
   getClient,
   getClientArticles,
@@ -15,7 +15,11 @@ import StatusBadge from '../../components/ui/StatusBadge.vue';
 import ClientFormModal from '../../components/clients/ClientFormModal.vue';
 import QrSignatureModal from '../../components/pos/QrSignatureModal.vue';
 import ReceiptModal from '../../components/clients/ReceiptModal.vue';
+import DigitalizationModal from '../../components/clients/DigitalizationModal.vue';
+import BarcodePreviewModal from '../../components/articles/BarcodePreviewModal.vue';
 import PdfPreviewModal from '../../components/ui/PdfPreviewModal.vue';
+import ArticleFormModal from '../../components/articles/ArticleFormModal.vue';
+import RetrocessionPaymentModal from '../../components/retrocessions/RetrocessionPaymentModal.vue';
 import { createReceipt, getClientReceipts, type IReceipt } from '../../api/receipts';
 import { updateClient, generateClientProfilePDF } from '../../api/clients';
 import { apiClient } from '../../api/client';
@@ -27,7 +31,7 @@ import {
   sendClientProfileEmail,
   type IClientDocument,
 } from '../../api/documents';
-import { markArticlePaid, markAllPaid } from '../../api/retrocessions';
+import type { RetrocessionPayResponse } from '../../api/retrocessions';
 
 const route = useRoute();
 const router = useRouter();
@@ -39,9 +43,32 @@ const retrocession = ref<IRetrocessionSummary | null>(null);
 const receipts = ref<IReceipt[]>([]);
 const documents = ref<IClientDocument[]>([]);
 const loading = ref(true);
+
+const depositedArticleIds = computed(() => {
+  const ids = new Set<string>();
+  receipts.value.filter(r => r.type === 'deposit').forEach(r => {
+    r.articleIds.forEach((a: any) => ids.add(a._id || a));
+  });
+  return ids;
+});
+
+const restitutedArticleIds = computed(() => {
+  const ids = new Set<string>();
+  receipts.value.filter(r => r.type === 'restitution').forEach(r => {
+    r.articleIds.forEach((a: any) => ids.add(a._id || a));
+  });
+  return ids;
+});
+
 const isGeneratingPdf = ref(false);
-const activeTab = ref<'articles' | 'retrocessions' | 'receipts' | 'documents'>('articles');
+const validTabs = ['articles', 'retrocessions', 'receipts', 'documents'] as const;
+type ClientTab = (typeof validTabs)[number];
+const initialTab = validTabs.includes(route.query.tab as ClientTab)
+  ? (route.query.tab as ClientTab)
+  : 'articles';
+const activeTab = ref<ClientTab>(initialTab);
 const formOpen = ref(false);
+const digitalizationModalOpen = ref(false);
 
 const selectedArticles = ref<string[]>([]);
 const signatureModalOpen = ref(false);
@@ -51,10 +78,16 @@ const pendingReceiptType = ref<'deposit' | 'restitution' | null>(null);
 const selectedReceipt = ref<IReceipt | null>(null);
 const receiptModalOpen = ref(false);
 
-// Aperçu PDF (fiche cliente)
+// Aperçu PDF (fiche cliente / quittance / document)
 const pdfPreviewOpen = ref(false);
 const pdfBlobUrl = ref('');
 const pdfFileName = ref('');
+const pdfPreviewTitle = ref('Fiche cliente');
+
+// Modale de règlement de rétrocession
+const selectedRetroArticles = ref<string[]>([]);
+const retroPaymentModalOpen = ref(false);
+const retroArticlesToPay = ref<Array<IRetrocessionItem & { description?: string }>>([]);
 
 const clientId = computed(() => route.params.id as string);
 const fullName = computed(() =>
@@ -79,47 +112,18 @@ const articleColumns: Column[] = [
   { key: 'clientPrice', label: 'Gain (CHF)', align: 'right', sortable: true },
   { key: 'status', label: 'Statut', align: 'center' },
   { key: 'createdAt', label: 'Déposé le', width: '120px', sortable: true },
+  { key: 'article_actions', label: '', align: 'right' as const },
 ];
 
 const retroColumns: Column[] = [
+  { key: 'select', label: '', width: '44px', align: 'center' },
   { key: 'article', label: 'Article', sortable: true },
   { key: 'saleDate', label: 'Vendu le', width: '120px', sortable: true },
   { key: 'finalSalePrice', label: 'Prix vente', align: 'right', sortable: true },
   { key: 'finalClientAmount', label: 'Montant cliente', align: 'right', sortable: true },
   { key: 'retrocessionPaid', label: 'Paiement', align: 'center', width: '150px' },
+  { key: 'actions', label: '', align: 'right', width: '150px' },
 ];
-
-const isMarkingPaid = ref(false);
-
-async function handleMarkPaid(articleId: string) {
-  if (isMarkingPaid.value) return;
-  isMarkingPaid.value = true;
-  try {
-    retrocession.value = await markArticlePaid(articleId);
-    notify.success('Article marqué comme remboursé.');
-  } catch {
-    notify.error('Erreur lors du marquage du remboursement.');
-  } finally {
-    isMarkingPaid.value = false;
-  }
-}
-
-async function handleMarkAllPaid() {
-  if (isMarkingPaid.value) return;
-  const restant = retrocession.value?.remainingToPay ?? 0;
-  if (!window.confirm(`Confirmer le remboursement intégral de ${formatCHF(restant)} à cette cliente ? Cette action marquera tous les articles vendus comme remboursés.`)) {
-    return;
-  }
-  isMarkingPaid.value = true;
-  try {
-    retrocession.value = await markAllPaid(clientId.value);
-    notify.success('Toutes les rétrocessions ont été marquées comme remboursées.');
-  } catch {
-    notify.error('Erreur lors du marquage des remboursements.');
-  } finally {
-    isMarkingPaid.value = false;
-  }
-}
 
 // Filtre par période (date de vente)
 const retroFrom = ref('');
@@ -143,6 +147,90 @@ const retroItemsView = computed(() => {
       return true;
     });
 });
+
+const unpaidRetroItems = computed(() => retroItemsView.value.filter((it) => !it.retrocessionPaid));
+
+const allUnpaidRetroSelected = computed(() => {
+  return (
+    unpaidRetroItems.value.length > 0 &&
+    unpaidRetroItems.value.every((it) => selectedRetroArticles.value.includes(it.articleId))
+  );
+});
+
+const someUnpaidRetroSelected = computed(() => {
+  return (
+    !allUnpaidRetroSelected.value &&
+    unpaidRetroItems.value.some((it) => selectedRetroArticles.value.includes(it.articleId))
+  );
+});
+
+const selectedRetroItems = computed(() =>
+  unpaidRetroItems.value.filter((it) => selectedRetroArticles.value.includes(it.articleId))
+);
+
+const selectedRetroTotal = computed(() =>
+  selectedRetroItems.value.reduce((sum, it) => sum + (it.finalClientAmount ?? 0), 0)
+);
+
+function toggleRetroSelectAll(e: Event) {
+  const checked = (e.target as HTMLInputElement).checked;
+  if (checked) {
+    selectedRetroArticles.value = unpaidRetroItems.value.map((it) => it.articleId);
+  } else {
+    selectedRetroArticles.value = [];
+  }
+}
+
+function toggleRetroRow(articleId: string) {
+  if (selectedRetroArticles.value.includes(articleId)) {
+    selectedRetroArticles.value = selectedRetroArticles.value.filter((id) => id !== articleId);
+  } else {
+    selectedRetroArticles.value = [...selectedRetroArticles.value, articleId];
+  }
+}
+
+function openRetroPayment(items: Array<IRetrocessionItem & { description?: string }>) {
+  const unpaid = items.filter((it) => !it.retrocessionPaid);
+  if (unpaid.length === 0) {
+    notify.info('Aucun article en attente de règlement.');
+    return;
+  }
+  retroArticlesToPay.value = unpaid;
+  retroPaymentModalOpen.value = true;
+}
+
+async function handleRetroPaymentSuccess(res: RetrocessionPayResponse) {
+  retrocession.value = res.summary;
+  selectedRetroArticles.value = [];
+
+  getClientDocuments(clientId.value)
+    .then((docs) => {
+      documents.value = docs.filter((d) => d.type !== 'client_profile');
+    })
+    .catch(() => {});
+  getClientArticles(clientId.value)
+    .then((arts) => {
+      articles.value = arts;
+    })
+    .catch(() => {});
+
+  if (res.documentId) {
+    await previewRetroReceipt(res.documentId);
+  }
+}
+
+async function previewRetroReceipt(documentId: string) {
+  try {
+    const blob = await fetchDocumentBlob(documentId);
+    if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = window.URL.createObjectURL(blob);
+    pdfFileName.value = 'Quittance_Retrocession.pdf';
+    pdfPreviewTitle.value = 'Quittance de règlement de rétrocession';
+    pdfPreviewOpen.value = true;
+  } catch {
+    notify.error('Erreur lors de l’ouverture de la quittance.');
+  }
+}
 
 function resetRetroFilter() {
   retroFrom.value = '';
@@ -257,6 +345,30 @@ function generateReceipt(type: 'deposit' | 'restitution') {
     notify.error("Veuillez sélectionner au moins un article.");
     return;
   }
+
+  if (type === 'deposit') {
+    const hasHistorical = selectedArticles.value.some(id => {
+      const a = articles.value.find(art => art._id === id);
+      return a && a.isHistorical;
+    });
+    if (hasHistorical) {
+      notify.error("Les articles issus d'une digitalisation historique ne peuvent pas faire l'objet d'un bon de dépôt.");
+      return;
+    }
+
+    const alreadyDeposited = selectedArticles.value.some(id => depositedArticleIds.value.has(id));
+    if (alreadyDeposited) {
+      notify.error("Certains articles sélectionnés ont déjà fait l'objet d'un bon de dépôt.");
+      return;
+    }
+  } else if (type === 'restitution') {
+    const alreadyRestituted = selectedArticles.value.some(id => restitutedArticleIds.value.has(id));
+    if (alreadyRestituted) {
+      notify.error("Certains articles sélectionnés ont déjà fait l'objet d'un bon de restitution.");
+      return;
+    }
+  }
+
   signatureType.value = 'standard';
   pendingReceiptType.value = type;
   signatureModalOpen.value = true;
@@ -310,6 +422,7 @@ async function openClientProfilePreview() {
     if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
     pdfBlobUrl.value = window.URL.createObjectURL(blob);
     pdfFileName.value = `Fiche_Cliente_${doc.referenceNumber}.pdf`;
+    pdfPreviewTitle.value = 'Fiche cliente';
     pdfPreviewOpen.value = true;
     // Rafraîchit la liste de l'onglet Documents pour y voir le nouveau PDF (sauf les fiches).
     documents.value = await getClientDocuments(clientId.value)
@@ -337,6 +450,7 @@ async function previewDocument(doc: IClientDocument) {
     if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
     pdfBlobUrl.value = window.URL.createObjectURL(blob);
     pdfFileName.value = `${documentTypeLabel(doc.type)}_${doc.referenceNumber}.pdf`;
+    pdfPreviewTitle.value = documentTypeLabel(doc.type);
     pdfPreviewOpen.value = true;
   } catch {
     notify.error('Erreur lors de l’ouverture du document.');
@@ -412,6 +526,30 @@ onMounted(load);
 onUnmounted(() => {
   if (pdfBlobUrl.value) window.URL.revokeObjectURL(pdfBlobUrl.value);
 });
+
+const isBarcodeModalOpen = ref(false);
+const selectedBarcode = ref<string | null>(null);
+const selectedArticleForBarcode = ref<any>(null);
+
+const openBarcode = (item: any) => {
+  selectedBarcode.value = item.barcode;
+  selectedArticleForBarcode.value = item;
+  isBarcodeModalOpen.value = true;
+};
+
+const isEditArticleModalOpen = ref(false);
+const articleToEdit = ref<any>(null);
+
+const openEditArticle = (item: any) => {
+  articleToEdit.value = item;
+  isEditArticleModalOpen.value = true;
+};
+
+const onArticleEdited = () => {
+  isEditArticleModalOpen.value = false;
+  articleToEdit.value = null;
+  load();
+};
 </script>
 
 <template>
@@ -451,12 +589,13 @@ onUnmounted(() => {
             {{ isGeneratingPdf ? 'Génération...' : 'Fiche PDF' }}
           </button>
           <button
-            v-if="!client.cguAccepted"
-            class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
-            @click="openCguSignature"
+            v-if="client.isDigitalized"
+            class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+            @click="digitalizationModalOpen = true"
           >
-            Faire signer les CGU
+            Digitaliser une fiche
           </button>
+
           <button
             class="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
             @click="formOpen = true"
@@ -552,8 +691,15 @@ onUnmounted(() => {
           selectable
           v-model:selected="selectedArticles"
         >
-          <template #cell-barcode="{ value }">
-            <span class="font-mono text-[12px] text-foreground">{{ value }}</span>
+          <template #cell-barcode="{ row: item }">
+            <div class="flex items-center font-mono text-[12px] text-foreground">
+              {{ item.barcode }}
+              <button @click="openBarcode(item)" class="ml-2 text-muted-foreground hover:text-foreground" title="Voir code-barres">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path>
+                </svg>
+              </button>
+            </div>
           </template>
           <template #cell-brand="{ value }">
             <span class="font-medium text-foreground">{{ value }}</span>
@@ -567,14 +713,116 @@ onUnmounted(() => {
           <template #cell-createdAt="{ value }">
             <span class="text-muted-foreground">{{ formatDate(value) }}</span>
           </template>
+          <template #cell-article_actions="{ row: item }">
+            <div class="flex justify-end">
+              <button
+                v-if="['deposited', 'on_sale'].includes(item.status) || item.isHistorical"
+                @click="openEditArticle(item)"
+                class="text-xs font-medium text-gray-500 hover:text-black border border-gray-200 rounded px-2 py-1 hover:border-gray-400 transition-colors"
+              >
+                Modifier
+              </button>
+            </div>
+          </template>
         </DataTable>
       </div>
       <div v-else-if="activeTab === 'retrocessions'">
         <template v-if="retrocession && retrocession.totalArticlesSold > 0">
+          <!-- Résumé financier -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Total gains déposante</p>
+              <p class="text-xl font-semibold text-foreground mt-1">{{ formatCHF(retrocession.totalRetrocessions) }}</p>
+            </div>
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Déjà versé</p>
+              <p class="text-xl font-semibold text-emerald-700 mt-1">{{ formatCHF(retrocession.totalPaid) }}</p>
+            </div>
+            <div class="bg-card rounded-xl border border-border/60 shadow-sm p-4">
+              <p class="text-[12px] text-muted-foreground">Reste à verser</p>
+              <p class="text-xl font-semibold mt-1" :class="retrocession.remainingToPay > 0 ? 'text-amber-700' : 'text-emerald-700'">
+                {{ formatCHF(retrocession.remainingToPay) }}
+              </p>
+            </div>
+          </div>
 
+          <!-- Barre d'actions : filtre période + impression + règlement (1, sélection ou tout) -->
+          <div class="flex items-end justify-between gap-4 flex-wrap mb-4">
+            <div class="flex items-end gap-2">
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-medium text-muted-foreground">Du</label>
+                <input v-model="retroFrom" type="date" class="h-9 px-2.5 bg-card border border-border rounded-md text-[13px] outline-none focus:ring-1 focus:ring-foreground/20" />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-[11px] font-medium text-muted-foreground">Au</label>
+                <input v-model="retroTo" type="date" class="h-9 px-2.5 bg-card border border-border rounded-md text-[13px] outline-none focus:ring-1 focus:ring-foreground/20" />
+              </div>
+              <button
+                v-if="retroFrom || retroTo"
+                class="h-9 px-2.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+                @click="resetRetroFilter"
+              >
+                Réinitialiser
+              </button>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button
+                class="inline-flex items-center gap-2 h-9 px-3 rounded-lg text-[13px] font-medium border border-border bg-card hover:bg-black/[0.03] transition-colors"
+                @click="printRetroStatement"
+              >
+                <Printer class="w-4 h-4" :stroke-width="1.75" />
+                Imprimer le relevé
+              </button>
+
+              <!-- Régler uniquement les articles cochés -->
+              <button
+                v-if="selectedRetroItems.length > 0"
+                class="inline-flex items-center gap-1.5 h-9 px-3.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[13px] font-medium transition-colors shadow-sm"
+                @click="openRetroPayment(selectedRetroItems)"
+              >
+                <CreditCard class="w-4 h-4" />
+                <span>Régler la sélection ({{ selectedRetroItems.length }}) · {{ formatCHF(selectedRetroTotal) }}</span>
+              </button>
+
+              <!-- Tout régler (ou ouvrir la modale pour choisir) -->
+              <button
+                v-if="retrocession.remainingToPay > 0"
+                class="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-[13px] font-medium transition-colors"
+                :class="
+                  selectedRetroItems.length > 0
+                    ? 'border border-border bg-card hover:bg-black/[0.03] text-foreground'
+                    : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm'
+                "
+                @click="openRetroPayment(unpaidRetroItems)"
+              >
+                <CreditCard class="w-4 h-4" />
+                <span>Tout régler · {{ formatCHF(retrocession.remainingToPay) }}</span>
+              </button>
+            </div>
+          </div>
 
           <!-- Détail par article -->
           <DataTable :columns="retroColumns" :rows="retroItemsView" row-key="articleId" empty-text="Aucun article vendu sur cette période.">
+            <template #head-select>
+              <input
+                v-if="unpaidRetroItems.length > 0"
+                type="checkbox"
+                class="w-4 h-4 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                :checked="allUnpaidRetroSelected"
+                :indeterminate="someUnpaidRetroSelected"
+                title="Sélectionner tous les articles en attente"
+                @change="toggleRetroSelectAll"
+              />
+            </template>
+            <template #cell-select="{ row }">
+              <input
+                v-if="!row.retrocessionPaid"
+                type="checkbox"
+                class="w-4 h-4 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                :checked="selectedRetroArticles.includes(row.articleId)"
+                @change="toggleRetroRow(row.articleId)"
+              />
+            </template>
             <template #cell-article="{ row }">
               <span class="font-medium text-foreground">{{ row.brand }} · {{ row.type }}</span>
               <span class="block text-[11px] text-muted-foreground">{{ row.description || row.barcode }}</span>
@@ -598,7 +846,28 @@ onUnmounted(() => {
                 En attente
               </span>
             </template>
-
+            <template #cell-actions="{ row }">
+              <div class="flex items-center justify-end gap-1.5">
+                <button
+                  v-if="!row.retrocessionPaid"
+                  class="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-medium transition-colors shadow-sm"
+                  @click="openRetroPayment([row])"
+                >
+                  <CreditCard class="w-3.5 h-3.5" />
+                  <span>Régler</span>
+                </button>
+                <button
+                  v-else-if="row.retrocessionReceiptId"
+                  class="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg border border-border bg-card hover:bg-black/[0.03] text-xs font-medium text-foreground transition-colors"
+                  title="Voir la quittance de règlement"
+                  @click="previewRetroReceipt(row.retrocessionReceiptId)"
+                >
+                  <FileText class="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>Quittance</span>
+                </button>
+                <span v-else class="text-muted-foreground/50 text-[12px]">—</span>
+              </div>
+            </template>
           </DataTable>
         </template>
         <div v-else class="text-muted-foreground text-sm py-10 text-center bg-card rounded-xl border border-border/60">
@@ -643,7 +912,8 @@ onUnmounted(() => {
               <span class="font-medium">{{ receipt.articleIds.length }}</span> article(s)
             </div>
             <div class="mt-2 pt-2 border-t border-border/60">
-              <img :src="receipt.signatureData" class="h-10 object-contain mix-blend-multiply" />
+              <img v-if="receipt.signatureData.startsWith('data:')" :src="receipt.signatureData" class="h-10 object-contain mix-blend-multiply" />
+              <div v-else class="text-[10px] text-muted-foreground italic h-10 flex items-center">{{ receipt.signatureData }}</div>
             </div>
           </div>
           <div v-if="!receipts.length" class="col-span-full text-center py-10 text-muted-foreground text-sm border border-dashed border-border/60 rounded-xl">
@@ -755,13 +1025,40 @@ onUnmounted(() => {
         :client="client"
       />
 
+      <RetrocessionPaymentModal
+        v-model:open="retroPaymentModalOpen"
+        :client="client"
+        :articles="retroArticlesToPay"
+        @success="handleRetroPaymentSuccess"
+      />
+
       <PdfPreviewModal
         :open="pdfPreviewOpen"
         :blob-url="pdfBlobUrl"
         :file-name="pdfFileName"
-        title="Fiche cliente"
+        :title="pdfPreviewTitle"
         @update:open="(v: boolean) => { if (!v) onPreviewClose(); }"
       />
     </template>
+
+    <DigitalizationModal
+      :open="digitalizationModalOpen"
+      :client-id="clientId"
+      @update:open="digitalizationModalOpen = $event"
+      @success="load"
+    />
+    <BarcodePreviewModal 
+      :is-open="isBarcodeModalOpen" 
+      :barcode="selectedBarcode" 
+      :article="selectedArticleForBarcode"
+      @close="isBarcodeModalOpen = false" 
+    />
+    <ArticleFormModal
+      :is-open="isEditArticleModalOpen"
+      :article-to-edit="articleToEdit"
+      @close="isEditArticleModalOpen = false; articleToEdit = null"
+      @saved="onArticleEdited"
+    />
   </div>
 </template>
+

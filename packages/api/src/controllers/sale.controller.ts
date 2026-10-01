@@ -133,8 +133,13 @@ export const saleController = {
         await client.save();
       }
 
-      // 2. Create Article
-      const barcode = `GM-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      // 2. Create Article (barcode séquentiel numérique partagé)
+      const barcodeCounter = await Counter.findByIdAndUpdate(
+        'barcode',
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      const barcode = String(barcodeCounter.seq).padStart(7, '0');
       const article = new Article({
         clientId: client._id,
         brand: data.article.brand,

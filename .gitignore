@@ -40,3 +40,16 @@ GM_Boutique_Cahier_des_Charges.pdf
 
 # Uploads / Générés
 packages/api/uploads/
+
+# Archives et dossiers de build/déploiement (NE JAMAIS COMMIT SUR GITHUB)
+*.zip
+*.tgz
+*.bak
+*.tsbuildinfo
+FINAL FANTASY/
+Last Last/
+backend_build/
+gmfront/
+gmback/
+ziiHlvuo
+
